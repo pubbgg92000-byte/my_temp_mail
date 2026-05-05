@@ -12,8 +12,8 @@ jobs:
     name: Deploy production
     runs-on: ubuntu-latest
     env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_ORG_ID: team_GGw6uML43Yffbha71s5GtQlp
+      VERCEL_PROJECT_ID: prj_zvAYmKkbGciDLUPylgDAPjb4lYAj
 
     steps:
       - name: Checkout main

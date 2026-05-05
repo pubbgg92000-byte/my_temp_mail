@@ -24,12 +24,10 @@ Normal users should open `/quick`. `/dashboard` requires `profiles.dashboard_acc
 
 Production deploys are intentionally manual. After pushing changes to `main`, open the GitHub repository, go to **Actions**, choose **Deploy to Vercel**, and click **Run workflow**. The workflow checks the app, pulls Vercel production settings, builds with Vercel, and deploys `main` to `https://titan-temp-mail.vercel.app/`.
 
-Add these GitHub Actions secrets before running the workflow:
+Add this GitHub Actions secret before running the workflow:
 
 ```txt
 VERCEL_TOKEN
-VERCEL_ORG_ID=team_GGw6uML43Yffbha71s5GtQlp
-VERCEL_PROJECT_ID=prj_zvAYmKkbGciDLUPylgDAPjb4lYAj
 ```
 
 Keep runtime environment variables in Vercel Production settings: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TEMP_MAIL_DOMAIN`, and the `TITAN_IMAP_*` values.
