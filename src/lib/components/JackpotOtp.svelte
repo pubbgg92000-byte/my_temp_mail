@@ -12,7 +12,10 @@
 	const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
 	let spinStartedAt = $state<number | null>(null);
 	let animationNow = $state(Date.now());
+	let reelSpinning = $state<boolean[]>([]);
 	let spinTimer: ReturnType<typeof setInterval> | undefined;
+	let stopTimers: ReturnType<typeof setTimeout>[] = [];
+
 	const reelIndexes = $derived(Array.from({ length }, (_, index) => index));
 	const normalizedCode = $derived(
 		String(code || '')
@@ -22,154 +25,276 @@
 	);
 	const spinDuration = $derived(
 		spinning && spinStartedAt
-			? Math.max(0.14, 0.82 - Math.min(0.58, ((animationNow - spinStartedAt) / 30000) * 0.58))
-			: 0.28
+			? Math.max(0.38, 1.05 - Math.min(0.55, ((animationNow - spinStartedAt) / 20000) * 0.55))
+			: 0.7
 	);
 
 	function reelStyle(index: number) {
 		const target = Number(normalizedCode[index] || 0);
-		const speedOffset = [0.04, -0.03, 0.08, -0.06, 0.02, -0.01, 0.06, -0.04][index % 8];
-		const spinSpeed = Math.max(0.12, spinDuration + speedOffset);
-		const settleDelay = 0.08 + index * 0.18 + (index % 2) * 0.06;
-		const settleDuration = 0.7 + (index % 3) * 0.18;
+		const speedOffset = [0.08, -0.04, 0.12, -0.02, 0.06, 0.1][index % 6];
+
 		return [
 			`--target: ${target}`,
-			`--delay: ${settleDelay}s`,
-			`--settle-duration: ${settleDuration}s`,
-			`--spin-duration: ${spinSpeed}s`,
-			`--spin-phase: ${index * -0.11}s`
+			`--spin-duration: ${Math.max(0.32, spinDuration + speedOffset)}s`,
+			`--spin-phase: ${index * -0.13}s`,
+			`--settle-delay: ${0.08 + index * 0.13}s`,
+			`--settle-duration: ${0.9 + index * 0.08}s`
 		].join('; ');
 	}
 
 	$effect(() => {
-		if (!spinning) {
-			spinStartedAt = null;
+		if (spinning) {
+			stopTimers.forEach(clearTimeout);
+			stopTimers = [];
+			reelSpinning = Array.from({ length }, () => true);
+			spinStartedAt ??= Date.now();
+			animationNow = Date.now();
+
+			if (spinTimer) clearInterval(spinTimer);
+			spinTimer = setInterval(() => {
+				animationNow = Date.now();
+			}, 250);
+		} else {
 			if (spinTimer) clearInterval(spinTimer);
 			spinTimer = undefined;
-			return;
-		}
+			stopTimers.forEach(clearTimeout);
 
-		spinStartedAt ??= Date.now();
-		animationNow = Date.now();
-		spinTimer = setInterval(() => {
-			animationNow = Date.now();
-		}, 300);
+			stopTimers = reelIndexes.map((_, index) =>
+				setTimeout(() => {
+					reelSpinning = reelSpinning.map((value, reelIndex) =>
+						reelIndex === index ? false : value
+					);
+
+					if (index === reelIndexes.length - 1) {
+						spinStartedAt = null;
+					}
+				}, 240 + index * 330)
+			);
+		}
 
 		return () => {
 			if (spinTimer) clearInterval(spinTimer);
 			spinTimer = undefined;
+			stopTimers.forEach(clearTimeout);
+			stopTimers = [];
 		};
 	});
 </script>
 
 <div
-	class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg border p-3 sm:gap-3 sm:p-4"
+	class="jackpot-shell mx-auto w-full max-w-5xl rounded-[2rem] border p-4 shadow-2xl sm:p-6"
+	style={`--reel-count: ${length}`}
 	aria-label={spinning ? 'Verification code reels spinning' : `Verification code ${normalizedCode}`}
 >
-	{#each reelIndexes as _, index}
-		<div class="reel-window" aria-hidden="true">
-			<div
-				class:spin={spinning}
-				class="reel-strip"
-				style={reelStyle(index)}
-			>
-				{#each digits as digit}
-					<div class="digit">{digit}</div>
-				{/each}
+	<div class="jackpot-glow"></div>
+
+	<div class="jackpot-frame">
+		{#each reelIndexes as _, index}
+			<div class="reel-body" aria-hidden="true">
+				<div class="reel-strip" class:spin={reelSpinning[index]} style={reelStyle(index)}>
+					{#each [...digits, ...digits, ...digits] as digit}
+						<div class="digit-cell">
+							<span>{digit}</span>
+						</div>
+					{/each}
+				</div>
+
+				<div class="reel-shine"></div>
+				<div class="reel-vignette"></div>
 			</div>
-		</div>
-	{/each}
+		{/each}
+	</div>
+
+	<div class="sr-only">
+		{#if spinning}
+			Verification code loading
+		{:else}
+			Verification code is {normalizedCode}
+		{/if}
+	</div>
 </div>
 
 <style>
-	.reel-window {
+	.jackpot-shell {
 		position: relative;
-		width: clamp(3.15rem, 8vw, 7.75rem);
-		height: clamp(3.15rem, 8vw, 7.75rem);
 		overflow: hidden;
-		border-radius: 9999px;
-		border: 2px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 42%, transparent);
+		border-color: color-mix(in srgb, var(--otp-digit, #49dfaa) 30%, transparent);
 		background:
-			radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--otp-digit, #49dfaa) 22%, transparent), transparent 58%),
-			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 88%, #ffffff 4%), var(--otp-bg, #101827));
-		box-shadow:
-			inset 0 0 30px rgba(0, 0, 0, 0.7),
-			0 0 28px var(--otp-glow, rgba(52, 211, 153, 0.15));
-		flex: 0 0 auto;
+			radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--otp-digit, #49dfaa) 18%, transparent), transparent 42%),
+			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 88%, #ffffff 5%), color-mix(in srgb, var(--otp-bg, #101827) 96%, #000000 12%));
+		box-shadow: 0 22px 70px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 36%, transparent);
 	}
 
-	.reel-window::before,
-	.reel-window::after {
-		content: '';
+	.jackpot-glow {
 		position: absolute;
-		left: 0;
-		right: 0;
-		z-index: 5;
-		height: 35%;
+		inset: auto 8% -35% 8%;
+		height: 45%;
+		border-radius: 9999px;
+		background: color-mix(in srgb, var(--otp-digit, #49dfaa) 28%, transparent);
+		filter: blur(52px);
 		pointer-events: none;
 	}
 
-	.reel-window::before {
-		top: 0;
-		background: linear-gradient(to bottom, color-mix(in srgb, var(--otp-bg, #101827) 94%, transparent), transparent);
+	.jackpot-frame {
+		position: relative;
+		display: grid;
+		grid-template-columns: repeat(var(--reel-count, 6), minmax(0, 1fr));
+		align-items: center;
+		gap: clamp(0.35rem, 1.2vw, 0.9rem);
+		border-radius: 1.6rem;
+		border: 1px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 36%, transparent);
+		background:
+			linear-gradient(90deg, color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent), transparent 10%, transparent 90%, color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent)),
+			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 94%, #ffffff 4%), color-mix(in srgb, var(--otp-bg, #101827) 98%, #000000 22%));
+		box-shadow:
+			inset 0 0 38px rgba(0, 0, 0, 0.88),
+			inset 0 0 30px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
+			0 0 34px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 40%, transparent);
+		padding: clamp(0.55rem, 1.7vw, 1.2rem);
 	}
 
-	.reel-window::after {
+	.reel-body {
+		--digit-size: clamp(4.3rem, 11vw, 8.5rem);
+
+		position: relative;
+		height: var(--digit-size);
+		min-width: 0;
+		overflow: hidden;
+		border-radius: 1.1rem;
+		border-left: 2px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 42%, #ffffff 32%);
+		border-right: 2px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 42%, #ffffff 32%);
+		background:
+			radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--otp-digit, #49dfaa) 16%, transparent), transparent 58%),
+			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 80%, #ffffff 8%), color-mix(in srgb, var(--otp-bg, #101827) 98%, #000000 28%));
+		box-shadow:
+			inset 0 0 22px rgba(0, 0, 0, 0.9),
+			inset 12px 0 18px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
+			inset -12px 0 18px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
+			0 0 22px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 38%, transparent);
+	}
+
+	.reel-body::before,
+	.reel-body::after {
+		content: '';
+		position: absolute;
+		top: 0;
 		bottom: 0;
-		background: linear-gradient(to top, color-mix(in srgb, var(--otp-bg, #101827) 94%, transparent), transparent);
+		width: 10px;
+		z-index: 6;
+		background: linear-gradient(
+			180deg,
+			color-mix(in srgb, var(--otp-digit, #49dfaa) 20%, transparent),
+			color-mix(in srgb, var(--otp-digit, #49dfaa) 45%, #ffffff 48%),
+			color-mix(in srgb, var(--otp-digit, #49dfaa) 20%, transparent)
+		);
+		box-shadow: 0 0 18px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.75)) 82%, transparent);
+		pointer-events: none;
+	}
+
+	.reel-body::before {
+		left: 0;
+	}
+
+	.reel-body::after {
+		right: 0;
 	}
 
 	.reel-strip {
-		--digit-size: clamp(3.15rem, 8vw, 7.75rem);
-
-		transform: translateY(calc(var(--target) * var(--digit-size) * -1));
+		transform: translateY(calc((var(--target) + 10) * var(--digit-size) * -1));
 		transition:
-			transform var(--settle-duration, 1.2s) cubic-bezier(0.12, 0.75, 0.2, 1.1),
-			filter 0.4s ease;
-		transition-delay: var(--delay);
+			transform var(--settle-duration, 1s) cubic-bezier(0.12, 0.78, 0.2, 1.08),
+			filter 0.35s ease;
+		transition-delay: var(--settle-delay, 0s);
+		will-change: transform;
 	}
 
-	.digit {
+	.digit-cell {
 		height: var(--digit-size);
 		display: grid;
 		place-items: center;
-		font-size: clamp(2rem, 5.7vw, 5.15rem);
+		position: relative;
+	}
+
+	.digit-cell::before {
+		content: '';
+		position: absolute;
+		inset: 12%;
+		border-radius: 0.9rem;
+		border: 1px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 18%, transparent);
+		background: rgba(3, 10, 14, 0.2);
+	}
+
+	.digit-cell span {
+		position: relative;
+		z-index: 2;
+		font-size: clamp(3rem, 8.5vw, 7rem);
 		font-weight: 950;
 		line-height: 1;
 		color: var(--otp-digit, #49dfaa);
+		letter-spacing: 0;
 		text-shadow:
-			0 0 18px var(--otp-glow, rgba(52, 211, 153, 0.7)),
-			0 8px 18px rgba(0, 0, 0, 0.5);
+			0 0 8px var(--otp-glow, rgba(73, 223, 170, 0.95)),
+			0 0 24px var(--otp-glow, rgba(73, 223, 170, 0.7)),
+			0 14px 20px rgba(0, 0, 0, 0.75);
+		filter: drop-shadow(0 0 6px var(--otp-glow, rgba(73, 223, 170, 0.75)));
+	}
+
+	.reel-shine {
+		position: absolute;
+		inset: 0;
+		z-index: 7;
+		background:
+			linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 18%, transparent 78%, rgba(255, 255, 255, 0.12)),
+			linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 28%, transparent 70%, color-mix(in srgb, var(--otp-digit, #49dfaa) 10%, transparent));
+		mix-blend-mode: screen;
+		pointer-events: none;
+	}
+
+	.reel-vignette {
+		position: absolute;
+		inset: 0;
+		z-index: 8;
+		background:
+			linear-gradient(to bottom, rgba(2, 6, 10, 0.86), transparent 32%, transparent 68%, rgba(2, 6, 10, 0.86)),
+			radial-gradient(circle at center, transparent 45%, rgba(0, 0, 0, 0.38));
+		pointer-events: none;
 	}
 
 	.spin {
-		animation: jackpot-reel-spin var(--spin-duration, 0.28s) linear infinite;
+		animation: jackpot-spin var(--spin-duration, 0.45s) linear infinite;
 		animation-delay: var(--spin-phase, 0s);
-		filter: blur(1.5px);
+		filter: blur(1.4px);
 	}
 
-	@keyframes jackpot-reel-spin {
+	@keyframes jackpot-spin {
 		from {
-			transform: translateY(0);
+			transform: translateY(calc(-10 * var(--digit-size)));
 		}
 
 		to {
-			transform: translateY(calc(-10 * var(--digit-size)));
+			transform: translateY(calc(-20 * var(--digit-size)));
 		}
 	}
 
-	@media (max-width: 420px) {
-		.reel-window {
-			width: clamp(2.65rem, 13vw, 3.15rem);
-			height: clamp(2.65rem, 13vw, 3.15rem);
+	@media (max-width: 640px) {
+		.jackpot-frame {
+			gap: 0.35rem;
+			padding: 0.5rem;
+			border-radius: 1.1rem;
 		}
 
-		.reel-strip {
-			--digit-size: clamp(2.65rem, 13vw, 3.15rem);
+		.reel-body {
+			--digit-size: clamp(3.1rem, 14vw, 4.4rem);
+			border-radius: 0.8rem;
 		}
 
-		.digit {
-			font-size: clamp(1.75rem, 11vw, 2.1rem);
+		.digit-cell span {
+			font-size: clamp(2.4rem, 11vw, 3.6rem);
+		}
+
+		.reel-body::before,
+		.reel-body::after {
+			width: 5px;
 		}
 	}
 

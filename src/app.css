@@ -562,9 +562,9 @@ textarea {
 		padding: 0.35rem 0.55rem;
 		border: 1px solid var(--border-strong);
 		border-radius: 0.4rem;
-		background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
 		color: var(--text);
-		box-shadow: var(--shadow-tight);
+		box-shadow: 0 14px 34px rgb(0 0 0 / 0.26);
 		font-size: 0.72rem;
 		font-weight: 800;
 		line-height: 1.2;
@@ -585,7 +585,7 @@ textarea {
 		z-index: 81;
 		width: 0.55rem;
 		height: 0.55rem;
-		background: color-mix(in srgb, var(--surface) 96%, var(--bg));
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
 		border-right: 1px solid var(--border-strong);
 		border-bottom: 1px solid var(--border-strong);
 		opacity: 0;
@@ -675,9 +675,35 @@ textarea {
 
 	.menu-popover {
 		@apply absolute z-50 rounded-lg border p-3 shadow-2xl;
-		background: color-mix(in srgb, var(--surface) 97%, transparent);
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
+		border-color: var(--border-strong);
+		box-shadow:
+			0 24px 70px rgb(0 0 0 / 0.34),
+			0 0 0 1px color-mix(in srgb, var(--accent) 10%, transparent);
+		color: var(--text);
+		backdrop-filter: blur(10px);
+	}
+
+	.menu-tabs {
+		@apply mb-3 grid grid-cols-3 gap-1 rounded-md border p-1;
+		background: color-mix(in srgb, var(--surface-soft) 88%, var(--bg));
 		border-color: var(--border);
-		backdrop-filter: blur(18px);
+	}
+
+	.menu-tabs button {
+		@apply min-h-9 rounded-sm px-2 text-xs font-black transition;
+		color: var(--muted);
+	}
+
+	.menu-tabs button:hover,
+	.menu-tab-active {
+		background: var(--accent-soft);
+		color: var(--text) !important;
+	}
+
+	.menu-panel {
+		@apply max-h-[min(28rem,calc(100vh-10rem))] overflow-y-auto pr-1;
+		scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent) transparent;
 	}
 
 	.menu-backdrop {
@@ -711,7 +737,7 @@ textarea {
 	}
 
 	.palette-scroll {
-		@apply max-h-72 space-y-2 overflow-y-auto pr-1;
+		@apply max-h-58 space-y-2 overflow-y-auto pr-1;
 		scrollbar-color: color-mix(in srgb, var(--accent) 45%, transparent) transparent;
 	}
 
@@ -755,7 +781,8 @@ textarea {
 
 	.toast-message {
 		@apply fixed bottom-4 left-4 right-4 z-40 mx-auto max-w-sm rounded-md border px-4 py-3 text-sm shadow-lg md:left-auto md:right-6 md:mx-0 md:w-96;
-		background: var(--surface);
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
+		color: var(--text);
 		animation: toast-in 220ms ease-out;
 	}
 
@@ -847,9 +874,9 @@ textarea {
 			visibility 220ms ease;
 		visibility: hidden;
 		@apply rounded-lg border p-3 shadow-xl;
-		background: var(--surface);
-		border-color: var(--border);
-		color: var(--muted);
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
+		border-color: var(--border-strong);
+		color: var(--text);
 	}
 
 	.compact-helper-expanded .compact-helper-body,
@@ -1182,8 +1209,9 @@ textarea {
 
 	.confirm-modal {
 		@apply w-full max-w-md rounded-lg border p-5 shadow-2xl;
-		background: var(--surface);
-		border-color: var(--border);
+		background: color-mix(in srgb, var(--surface) 98%, var(--bg));
+		border-color: var(--border-strong);
+		color: var(--text);
 	}
 
 	.badge {
