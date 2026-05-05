@@ -3,17 +3,9 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-  let dark = $state(false);
-
-  function toggleTheme() {
-    dark = !dark;
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
-  }
-
   onMount(() => {
     const storedTheme = localStorage.getItem('theme');
-    dark = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const dark = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
     document.documentElement.classList.toggle('dark', dark);
   });
 </script>
@@ -25,15 +17,10 @@
 
 <main class="app-shell flex flex-col">
   {#if !data.user}
-    <header class="topbar">
-      <a href="/" class="flex items-center gap-3 font-black">
-        <span aria-hidden="true">⚡</span>
-        <span>OtpNest</span>
-      </a>
-      <nav class="flex items-center gap-2" aria-label="Public navigation">
-        <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
-        <a class="btn btn-secondary" href="/login">Log in</a>
-        <a class="btn btn-primary" href="/signup">Sign up</a>
+    <header class="flex min-w-0 justify-end py-2">
+      <nav class="flex items-center gap-5 text-sm font-black" aria-label="Public navigation">
+        <a class="public-text-link" href="/login">Log in</a>
+        <a class="public-text-link" href="/signup">Sign up</a>
       </nav>
     </header>
   {/if}
@@ -47,14 +34,11 @@
       <p class="mt-5 max-w-2xl text-[clamp(1rem,2vw,1.18rem)] leading-8 muted">
         Generate private aliases, receive verification mail, and keep every code scoped to the user who created the inbox.
       </p>
-      <div class="mt-7 flex flex-wrap gap-3">
-        <a class="btn btn-primary" href={data.user ? '/quick' : '/signup'}>Create an inbox</a>
-        {#if data.user}
-          <a class="btn btn-secondary" href="/quick">Open quick mail</a>
-        {:else}
-          <a class="btn btn-secondary" href="/login">Log in</a>
-        {/if}
-      </div>
+      {#if data.user}
+        <div class="mt-7">
+          <a class="public-text-link text-base" href="/quick">Open quick mail</a>
+        </div>
+      {/if}
     </div>
   </section>
 </main>

@@ -15,6 +15,7 @@
   let dark = $state(false);
   let menuOpen = $state(false);
   let menuTab = $state<'pages' | 'theme' | 'more'>('pages');
+  let menuWrapper = $state<HTMLDivElement | null>(null);
   let themeMode = $state<ThemeMode>('system');
   let palette = $state('default');
   let clientUser = $state<{ id: string; email?: string | null } | null>(null);
@@ -137,11 +138,19 @@
     await invalidateAll();
     await goto('/login');
   }
+
+  function closeMenuOnOutsideClick(event: PointerEvent) {
+    if (!menuOpen || !menuWrapper) return;
+    const target = event.target;
+    if (target instanceof Node && !menuWrapper.contains(target)) menuOpen = false;
+  }
 </script>
+
+<svelte:document onpointerdown={closeMenuOnOutsideClick} />
 
 {#if showAppNav}
   <nav class="global-app-nav" aria-label="App navigation">
-    <div class="global-menu-slot relative">
+    <div class="global-menu-slot relative" bind:this={menuWrapper}>
       <button
         class="menu-button global-menu-trigger"
         onclick={() => (menuOpen = !menuOpen)}
@@ -227,7 +236,7 @@
       {/if}
     </div>
 
-    <a href="/quick" class="global-profile" title={effectiveUser?.email ?? 'Signed in'}>
+    <a href="/dashboard" class="global-profile" title={effectiveUser?.email ?? 'Signed in'}>
       <span class="global-avatar" aria-hidden="true">{effectiveProfile?.emoji ?? '⚡'}</span>
       <span class="min-w-0 text-left">
         <span class="block truncate font-black">{profileLabel}</span>

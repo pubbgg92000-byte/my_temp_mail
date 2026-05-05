@@ -50,7 +50,7 @@
   <meta name="description" content="Log in to OtpNest to manage private temporary inboxes and verification codes." />
 </svelte:head>
 
-<main class="app-shell grid min-h-screen items-center md:max-w-96 lg:grid-cols-[1fr_440px]">
+<main class="app-shell grid min-h-screen items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(22rem,440px)]">
   <section class="hidden max-w-2xl lg:block">
     <a href="/" class="flex items-center gap-3 font-black">
       <span aria-hidden="true">⚡</span>
@@ -61,7 +61,7 @@
     <p class="mt-5 text-lg leading-8 muted">Use your account to isolate aliases, messages, and verification codes in one calm workspace.</p>
   </section>
 
-  <section class="panel p-5 sm:p-6" aria-labelledby="login-title">
+  <section class="panel w-full p-5 sm:p-6" aria-labelledby="login-title">
     <div class="mb-8 flex items-center justify-between">
       <a href="/" class="font-black lg:hidden">OtpNest</a>
       <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
