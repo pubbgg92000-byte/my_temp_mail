@@ -20,6 +20,20 @@ npm run worker
 
 Normal users should open `/quick`. `/dashboard` requires `profiles.dashboard_access = true`, `profiles.role = 'dashboard_user'`, `profiles.role = 'admin'`, or `profiles.role = 'main_admin'`. `/admin` requires `profiles.role = 'admin'` or `profiles.role = 'main_admin'`.
 
+## Deploy to Vercel
+
+Production deploys are intentionally manual. After pushing changes to `main`, open the GitHub repository, go to **Actions**, choose **Deploy to Vercel**, and click **Run workflow**. The workflow checks the app, pulls Vercel production settings, builds with Vercel, and deploys `main` to `https://titan-temp-mail.vercel.app/`.
+
+Add these GitHub Actions secrets before running the workflow:
+
+```txt
+VERCEL_TOKEN
+VERCEL_ORG_ID=team_GGw6uML43Yffbha71s5GtQlp
+VERCEL_PROJECT_ID=prj_zvAYmKkbGciDLUPylgDAPjb4lYAj
+```
+
+Keep runtime environment variables in Vercel Production settings: `PUBLIC_SUPABASE_URL`, `PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `TEMP_MAIL_DOMAIN`, and the `TITAN_IMAP_*` values.
+
 ## Database setup
 
 Run `supabase/schema.sql` in Supabase SQL Editor. Before applying the unique canonical local-part index to an existing database, check for old duplicate or dot-variant rows:
