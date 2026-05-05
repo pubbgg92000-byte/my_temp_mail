@@ -244,14 +244,14 @@
         <h1 id="quick-title">Create mail. Fetch code.</h1>
       </div>
       <div class="header-actions" aria-label="Quick mail actions">
-        <button class="icon-button" onclick={toggleTheme} aria-label="Toggle day and night mode" title={dark ? 'Day mode' : 'Night mode'}>
+        <button class="icon-button has-tooltip" onclick={toggleTheme} aria-label="Toggle day and night mode" data-tooltip={dark ? 'Day mode' : 'Night mode'} title={dark ? 'Day mode' : 'Night mode'}>
           {#if dark}
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg>
           {:else}
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 7.5A9 9 0 1 1 12 3Z"></path></svg>
           {/if}
         </button>
-        <button class="icon-button" onclick={logout} aria-label="Log out" title="Log out">
+        <button class="icon-button danger-icon has-tooltip" onclick={logout} aria-label="Log out" data-tooltip="Log out" title="Log out">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><path d="M16 17l5-5-5-5"></path><path d="M21 12H9"></path></svg>
         </button>
       </div>
@@ -287,7 +287,7 @@
       {#if selectedInbox}
         <div class="current-mail">
           <strong>{selectedInbox.emailAddress}</strong>
-          <button class="icon-button" onclick={() => copyText(selectedInbox.emailAddress, 'Mail copied')} aria-label="Copy mail" title="Copy mail">
+          <button class="icon-button has-tooltip" onclick={() => copyText(selectedInbox.emailAddress, 'Mail copied')} aria-label="Copy mail" data-tooltip="Copy mail" title="Copy mail">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button>
         </div>
@@ -309,7 +309,7 @@
       {#if latestCode}
         <div class="otp-line">
           <span>{latestCode}</span>
-          <button class="icon-button otp-copy" onclick={() => copyText(latestCode ?? '', 'OTP copied')} aria-label="Copy OTP code" title="Copy OTP">
+          <button class="icon-button otp-copy has-tooltip" onclick={() => copyText(latestCode ?? '', 'OTP copied')} aria-label="Copy OTP code" data-tooltip="Copy OTP" title="Copy OTP">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
           </button>
         </div>
@@ -347,13 +347,13 @@
                 />
               </div>
               <div class="row-actions">
-                <button class="icon-button" onclick={() => selectInbox(inbox)} aria-label={`Select ${inbox.emailAddress}`} title="Select">
+                <button class="icon-button has-tooltip" onclick={() => selectInbox(inbox)} aria-label={`Select ${inbox.emailAddress}`} data-tooltip="Select mail" title="Select">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5"></path></svg>
                 </button>
-                <button class="icon-button" onclick={() => copyText(inbox.emailAddress, 'Mail copied')} aria-label={`Copy ${inbox.emailAddress}`} title="Copy">
+                <button class="icon-button has-tooltip" onclick={() => copyText(inbox.emailAddress, 'Mail copied')} aria-label={`Copy ${inbox.emailAddress}`} data-tooltip="Copy mail" title="Copy">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                 </button>
-                <button class="icon-button danger-icon" onclick={() => (deleteTarget = inbox)} aria-label={`Delete ${inbox.emailAddress}`} title="Delete">
+                <button class="icon-button danger-icon has-tooltip" onclick={() => (deleteTarget = inbox)} aria-label={`Delete ${inbox.emailAddress}`} data-tooltip="Delete mail" title="Delete">
                   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18"></path><path d="M8 6V4h8v2"></path><path d="M6 6l1 14h10l1-14"></path><path d="M10 11v5"></path><path d="M14 11v5"></path></svg>
                 </button>
               </div>

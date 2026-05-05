@@ -1,5 +1,4 @@
 import { requireDashboardAccess } from '$lib/server/auth';
-import { wrap } from 'node:module';
 
 export const load = async (event) => {
 	const { user } = await requireDashboardAccess(event);

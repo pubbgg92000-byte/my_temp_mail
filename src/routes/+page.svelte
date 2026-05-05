@@ -24,21 +24,19 @@
 </svelte:head>
 
 <main class="app-shell flex flex-col">
-  <header class="topbar">
-    <a href="/" class="flex items-center gap-3 font-black">
-      <span aria-hidden="true">⚡</span>
-      <span>OtpNest</span>
-    </a>
-    <nav class="flex items-center gap-2" aria-label="Public navigation">
-      <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
-      {#if data.user}
-        <a class="btn btn-primary" href="/quick">Quick mail</a>
-      {:else}
+  {#if !data.user}
+    <header class="topbar">
+      <a href="/" class="flex items-center gap-3 font-black">
+        <span aria-hidden="true">⚡</span>
+        <span>OtpNest</span>
+      </a>
+      <nav class="flex items-center gap-2" aria-label="Public navigation">
+        <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
         <a class="btn btn-secondary" href="/login">Log in</a>
         <a class="btn btn-primary" href="/signup">Sign up</a>
-      {/if}
-    </nav>
-  </header>
+      </nav>
+    </header>
+  {/if}
 
   <section class="flex flex-1 items-center py-8 lg:py-14">
     <div class="min-w-0">
@@ -51,7 +49,11 @@
       </p>
       <div class="mt-7 flex flex-wrap gap-3">
         <a class="btn btn-primary" href={data.user ? '/quick' : '/signup'}>Create an inbox</a>
-        <a class="btn btn-secondary" href="/login">Log in</a>
+        {#if data.user}
+          <a class="btn btn-secondary" href="/quick">Open quick mail</a>
+        {:else}
+          <a class="btn btn-secondary" href="/login">Log in</a>
+        {/if}
       </div>
     </div>
   </section>

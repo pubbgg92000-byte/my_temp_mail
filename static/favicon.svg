@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OtpNest thunder favicon">
-  <rect width="64" height="64" rx="14" fill="#222831"/>
-  <path d="M36 6 14 36h16l-4 22 24-34H34l2-18Z" fill="#00ADB5"/>
-  <path d="M32 12 20 32h15l-3 15 13-20H30l2-15Z" fill="#EEEEEE" opacity=".18"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Thunder favicon">
+  <rect width="64" height="64" rx="16" fill="#101827"/>
+  <path d="M37 5 13 37h16l-3 22 25-35H35l2-19Z" fill="#34D399"/>
+  <path d="M35 8 18 33h15l-2 15 16-25H33l2-15Z" fill="#F8FAFC"/>
+  <path d="M37 5 13 37h16l-3 22 25-35H35l2-19Z" fill="none" stroke="#22D3EE" stroke-width="2" opacity=".35"/>
 </svg>

@@ -137,12 +137,89 @@ create table if not exists public.received_emails (
 create index if not exists received_emails_user_id_idx on public.received_emails(user_id);
 create index if not exists received_emails_inbox_id_idx on public.received_emails(inbox_id);
 create index if not exists received_emails_received_at_idx on public.received_emails(received_at desc);
+create index if not exists received_emails_created_at_idx on public.received_emails(created_at desc);
 
 alter table public.received_emails enable row level security;
 
 drop policy if exists received_emails_select_own on public.received_emails;
 create policy received_emails_select_own on public.received_emails
 for select to authenticated using (auth.uid() = user_id);
+
+create table if not exists public.inbox_usage_stats (
+  inbox_id uuid primary key references public.temp_inboxes(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  email_address text not null,
+  received_count integer not null default 0,
+  otp_count integer not null default 0,
+  last_received_at timestamptz,
+  last_otp_at timestamptz,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+create index if not exists inbox_usage_stats_user_id_idx on public.inbox_usage_stats(user_id);
+create index if not exists inbox_usage_stats_email_address_idx on public.inbox_usage_stats(email_address);
+alter table public.inbox_usage_stats enable row level security;
+
+drop policy if exists inbox_usage_stats_select_own on public.inbox_usage_stats;
+create policy inbox_usage_stats_select_own on public.inbox_usage_stats
+for select to authenticated using (auth.uid() = user_id);
+
+insert into public.inbox_usage_stats (
+  inbox_id,
+  user_id,
+  email_address,
+  received_count,
+  otp_count,
+  last_received_at,
+  last_otp_at
+)
+select
+  ti.id,
+  ti.user_id,
+  ti.email_address,
+  count(re.id)::int,
+  count(re.id) filter (where re.detected_code is not null)::int,
+  max(coalesce(re.received_at, re.created_at)),
+  max(coalesce(re.received_at, re.created_at)) filter (where re.detected_code is not null)
+from public.temp_inboxes ti
+left join public.received_emails re on re.inbox_id = ti.id
+group by ti.id, ti.user_id, ti.email_address
+on conflict (inbox_id) do update
+set received_count = greatest(public.inbox_usage_stats.received_count, excluded.received_count),
+    otp_count = greatest(public.inbox_usage_stats.otp_count, excluded.otp_count),
+    last_received_at = case
+      when public.inbox_usage_stats.last_received_at is null then excluded.last_received_at
+      when excluded.last_received_at is null then public.inbox_usage_stats.last_received_at
+      else greatest(public.inbox_usage_stats.last_received_at, excluded.last_received_at)
+    end,
+    last_otp_at = case
+      when public.inbox_usage_stats.last_otp_at is null then excluded.last_otp_at
+      when excluded.last_otp_at is null then public.inbox_usage_stats.last_otp_at
+      else greatest(public.inbox_usage_stats.last_otp_at, excluded.last_otp_at)
+    end,
+    updated_at = now();
+
+create or replace function public.purge_expired_received_emails()
+returns integer language plpgsql security definer set search_path = public as $$
+declare
+  scrubbed_count integer;
+begin
+  update public.received_emails
+  set subject = null,
+      body_preview = null,
+      full_body = null,
+      detected_code = null
+  where coalesce(received_at, created_at) < now() - interval '20 minutes'
+    and (
+      subject is not null
+      or body_preview is not null
+      or full_body is not null
+      or detected_code is not null
+    );
+  get diagnostics scrubbed_count = row_count;
+  return scrubbed_count;
+end;
+$$;
 
 create table if not exists public.processed_messages (
   id uuid primary key default gen_random_uuid(),

@@ -1,18 +1,20 @@
 import { adminSupabase } from '$lib/server/admin';
 import { auditLog } from '$lib/server/audit';
 import { requireMainAdmin } from '$lib/server/auth';
+import { purgeExpiredReceivedEmails } from '$lib/server/cleanup';
 import { clientIp, rateLimit } from '$lib/server/rate-limit';
 import { error, json } from '@sveltejs/kit';
 
 export async function GET(event) {
 	const { user: admin } = await requireMainAdmin(event);
+	await purgeExpiredReceivedEmails();
 	const limited = rateLimit(`main-admin-user-detail:${admin.id}`, 80, 60 * 1000);
 	if (!limited.ok) {
 		throw error(429, `Too many requests. Try again in ${limited.retryAfter}s.`);
 	}
 
 	const userId = event.params.userId;
-	const [profileResponse, authResponse, inboxResponse, emailResponse] = await Promise.all([
+	const [profileResponse, authResponse, inboxResponse, emailResponse, usageResponse] = await Promise.all([
 		adminSupabase
 			.from('profiles')
 			.select('id,email,full_name,avatar_url,role,dashboard_access,is_blocked,created_at')
@@ -27,18 +29,42 @@ export async function GET(event) {
 			.limit(100),
 		adminSupabase
 			.from('received_emails')
-			.select('id,inbox_id,recipient_email,sender_email,subject,body_preview,full_body,detected_code,message_id,received_at,created_at')
+			.select('id,inbox_id,recipient_email,sender_email,subject,body_preview,detected_code,message_id,received_at,created_at')
 			.eq('user_id', userId)
 			.order('received_at', { ascending: false })
-			.limit(200)
+			.limit(50),
+		adminSupabase
+			.from('inbox_usage_stats')
+			.select('inbox_id,email_address,received_count,otp_count,last_received_at,last_otp_at')
+			.eq('user_id', userId)
 	]);
 
 	if (profileResponse.error) {
 		throw error(404, 'User profile not found.');
 	}
-	if (inboxResponse.error || emailResponse.error) {
+	if (inboxResponse.error || emailResponse.error || usageResponse.error) {
 		throw error(500, 'Unable to load user data.');
 	}
+
+	const statsByInbox = new Map(
+		(usageResponse.data ?? []).map((usage) => [
+			usage.inbox_id,
+			{
+				emailAddress: usage.email_address,
+				receivedCount: usage.received_count ?? 0,
+				otpCount: usage.otp_count ?? 0,
+				lastReceivedAt: usage.last_received_at,
+				lastOtpAt: usage.last_otp_at
+			}
+		])
+	);
+	const totals = [...statsByInbox.values()].reduce(
+		(acc, usage) => ({
+			receivedCount: acc.receivedCount + usage.receivedCount,
+			otpCount: acc.otpCount + usage.otpCount
+		}),
+		{ receivedCount: 0, otpCount: 0 }
+	);
 
 	await auditLog({
 		userId: admin.id,
@@ -62,6 +88,13 @@ export async function GET(event) {
 				}
 			: null,
 		inboxes: inboxResponse.data ?? [],
-		emails: emailResponse.data ?? []
+		stats: {
+			mailCreatedCount: inboxResponse.data?.length ?? 0,
+			inboxesWithOtpCount: [...statsByInbox.values()].filter((usage) => usage.otpCount > 0).length,
+			receivedCount: totals.receivedCount,
+			otpCount: totals.otpCount,
+			byInbox: Object.fromEntries(statsByInbox)
+		},
+		recentEmails: emailResponse.data ?? []
 	});
 }

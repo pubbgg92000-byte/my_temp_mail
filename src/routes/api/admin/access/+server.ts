@@ -24,7 +24,50 @@ export async function GET(event) {
 		throw error(500, 'Unable to load users.');
 	}
 
-	return json({ profiles: data ?? [] });
+	const profiles = data ?? [];
+	const userIds = profiles.map((profile) => profile.id);
+	const [inboxResponse, usageResponse] = await Promise.all([
+		userIds.length
+			? adminSupabase.from('temp_inboxes').select('id,user_id').in('user_id', userIds)
+			: Promise.resolve({ data: [], error: null }),
+		userIds.length
+			? adminSupabase.from('inbox_usage_stats').select('user_id,received_count,otp_count').in('user_id', userIds)
+			: Promise.resolve({ data: [], error: null })
+	]);
+
+	if (inboxResponse.error || usageResponse.error) {
+		throw error(500, 'Unable to load user activity.');
+	}
+
+	const activityByUser = new Map<
+		string,
+		{ mailCreatedCount: number; receivedCount: number; otpCount: number }
+	>();
+	for (const userId of userIds) {
+		activityByUser.set(userId, { mailCreatedCount: 0, receivedCount: 0, otpCount: 0 });
+	}
+	for (const inbox of inboxResponse.data ?? []) {
+		const activity = activityByUser.get(inbox.user_id);
+		if (activity) activity.mailCreatedCount += 1;
+	}
+	for (const usage of usageResponse.data ?? []) {
+		const activity = activityByUser.get(usage.user_id);
+		if (activity) {
+			activity.receivedCount += usage.received_count ?? 0;
+			activity.otpCount += usage.otp_count ?? 0;
+		}
+	}
+
+	return json({
+		profiles: profiles.map((profile) => ({
+			...profile,
+			activity: activityByUser.get(profile.id) ?? {
+				mailCreatedCount: 0,
+				receivedCount: 0,
+				otpCount: 0
+			}
+		}))
+	});
 }
 
 export async function POST(event) {

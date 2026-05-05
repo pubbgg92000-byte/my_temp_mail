@@ -1,5 +1,6 @@
 import { adminSupabase } from '$lib/server/admin';
 import { auditLog } from '$lib/server/audit';
+import { purgeExpiredReceivedEmails } from '$lib/server/cleanup';
 import { clientIp } from '$lib/server/rate-limit';
 import { requireAdmin } from '$lib/server/auth';
 import { json, error } from '@sveltejs/kit';
@@ -13,6 +14,7 @@ async function countRows(table: string, apply?: (query: any) => any) {
 
 export async function GET(event) {
   const { user } = await requireAdmin(event);
+  await purgeExpiredReceivedEmails();
 
   try {
     const now = new Date().toISOString();

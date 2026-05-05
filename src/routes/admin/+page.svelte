@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { page } from '$app/state';
   import { onMount } from 'svelte';
   import type { PageData } from './$types';
 
@@ -26,6 +27,11 @@
     dashboard_access: boolean | null;
     is_blocked: boolean | null;
     created_at: string;
+    activity?: {
+      mailCreatedCount: number;
+      receivedCount: number;
+      otpCount: number;
+    };
   };
 
   type AdminInbox = {
@@ -36,6 +42,12 @@
     emailAddress: string;
     status: string | null;
     createdAt: string;
+    stats: {
+      receivedCount: number;
+      otpCount: number;
+      lastReceivedAt: string | null;
+      lastOtpAt: string | null;
+    };
     latestMessage: {
       id: string;
       from: string | null;
@@ -71,14 +83,26 @@
       ip_address: string | null;
       user_agent: string | null;
     }>;
-    emails: Array<{
+    stats: {
+      mailCreatedCount: number;
+      inboxesWithOtpCount: number;
+      receivedCount: number;
+      otpCount: number;
+      byInbox: Record<string, {
+        emailAddress: string;
+        receivedCount: number;
+        otpCount: number;
+        lastReceivedAt: string | null;
+        lastOtpAt: string | null;
+      }>;
+    };
+    recentEmails: Array<{
       id: string;
       inbox_id: string;
       recipient_email: string;
       sender_email: string | null;
       subject: string | null;
       body_preview: string | null;
-      full_body: string | null;
       detected_code: string | null;
       message_id: string | null;
       received_at: string | null;
@@ -103,6 +127,18 @@
   let grantLevel = $state<'dashboard' | 'admin'>('dashboard');
   let dark = $state(false);
   const isMainAdmin = $derived(data.role === 'main_admin');
+  const adminView = $derived(
+    page.url.pathname.endsWith('/users')
+      ? 'users'
+      : page.url.pathname.endsWith('/inboxes')
+        ? 'inboxes'
+        : page.url.pathname.endsWith('/system')
+          ? 'system'
+          : 'overview'
+  );
+  const showUsersView = $derived(adminView === 'overview' || adminView === 'users');
+  const showInboxesView = $derived(adminView === 'overview' || adminView === 'inboxes');
+  const showSystemView = $derived(adminView === 'overview' || adminView === 'system');
 
   function toggleTheme() {
     dark = !dark;
@@ -265,7 +301,9 @@
       <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
       <a class="btn btn-secondary" href="/quick">Quick</a>
       <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-      <a class="btn btn-secondary" href="/">Home</a>
+      <a class="btn btn-secondary" href="/admin/users">Users</a>
+      <a class="btn btn-secondary" href="/admin/inboxes">Inboxes</a>
+      <a class="btn btn-secondary" href="/admin/system">System</a>
       <button class="btn btn-primary" onclick={refreshAll} disabled={loading || mailLoading}>{loading || mailLoading ? 'Refreshing...' : 'Refresh'}</button>
     </div>
   </header>
@@ -274,7 +312,7 @@
     <p class="rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{errorMessage}</p>
   {/if}
 
-  {#if isMainAdmin}
+  {#if isMainAdmin && showUsersView}
   <section class="panel p-4 sm:p-5" aria-labelledby="access-title">
     <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div>
@@ -312,18 +350,25 @@
 
     <div class="mt-4 overflow-hidden rounded-lg border" style="border-color: var(--border);">
       {#each profiles as profile}
-        <button class="grid w-full gap-2 border-b p-3 text-left text-sm last:border-b-0 sm:grid-cols-[1fr_auto_auto_auto]" style="border-color: var(--border);" onclick={() => openUser(profile.id)}>
-          <span class="truncate font-semibold">{profile.email}</span>
+        <button class="grid w-full gap-2 border-b p-3 text-left text-sm last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]" style="border-color: var(--border);" onclick={() => openUser(profile.id)}>
+          <span class="min-w-0">
+            <span class="block truncate font-semibold">{profile.email}</span>
+            <span class="mt-1 block text-xs muted">
+              Mails {profile.activity?.mailCreatedCount ?? 0} · Received {profile.activity?.receivedCount ?? 0} · OTPs {profile.activity?.otpCount ?? 0}
+            </span>
+          </span>
+          <span class="badge">Mails {profile.activity?.mailCreatedCount ?? 0}</span>
           <span class="badge">{profile.dashboard_access ? 'Dashboard' : 'Quick only'}</span>
-          <span class="badge">{profile.is_blocked ? 'Blocked' : 'Active'}</span>
+          <span class="badge" class:danger-text={profile.is_blocked}>{profile.is_blocked ? 'Blocked' : 'Active'}</span>
           <span class="badge">{profile.role ?? 'user'}</span>
+          <span class="font-semibold" style="color: var(--accent);">View profile</span>
         </button>
       {:else}
         <p class="p-3 text-sm muted">No users found.</p>
       {/each}
     </div>
   </section>
-  {:else}
+  {:else if !isMainAdmin && showUsersView}
     <section class="panel p-4 sm:p-5">
       <p class="kicker">Access</p>
       <h1 class="mt-1 text-2xl font-black">Admin access</h1>
@@ -331,7 +376,7 @@
     </section>
   {/if}
 
-  {#if isMainAdmin}
+  {#if isMainAdmin && showUsersView}
     <section class="panel p-4 sm:p-5" aria-labelledby="user-title">
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -352,8 +397,33 @@
             <p class="mt-2 text-sm muted">ID: {selectedUser.profile.id}</p>
             <p class="mt-2 text-sm muted">Role: {selectedUser.profile.role ?? 'user'}</p>
             <p class="mt-2 text-sm muted">Dashboard: {selectedUser.profile.dashboard_access ? 'yes' : 'no'}</p>
-            <p class="mt-2 text-sm muted">Blocked: {selectedUser.profile.is_blocked ? 'yes' : 'no'}</p>
+            <p class="mt-2 text-sm muted">
+              <span class:danger-text={selectedUser.profile.is_blocked}>Blocked: {selectedUser.profile.is_blocked ? 'yes' : 'no'}</span>
+            </p>
             <p class="mt-2 text-sm muted">Created: {new Date(selectedUser.profile.created_at).toLocaleString()}</p>
+            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <p class="muted">Mails created</p>
+                <p class="text-2xl font-black">{selectedUser.stats.mailCreatedCount}</p>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <p class="muted">Mails with OTP</p>
+                <p class="text-2xl font-black">{selectedUser.stats.inboxesWithOtpCount}</p>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <p class="muted">Total received</p>
+                <p class="text-2xl font-black">{selectedUser.stats.receivedCount}</p>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <p class="muted">Total OTPs</p>
+                <p class="text-2xl font-black">{selectedUser.stats.otpCount}</p>
+              </div>
+            </div>
+            {#if selectedUser.stats.mailCreatedCount === 0}
+              <p class="mt-3 rounded-md border px-3 py-2 text-sm muted" style="border-color: var(--border);">
+                This user has not created any temp mails yet. Select a user with a non-zero mail count to view their created mails, received count, and OTP stats.
+              </p>
+            {/if}
             {#if selectedUser.authUser}
               <p class="mt-2 text-sm muted">Last sign-in: {selectedUser.authUser.lastSignInAt ? new Date(selectedUser.authUser.lastSignInAt).toLocaleString() : 'never'}</p>
               <p class="mt-2 text-sm muted">Email confirmed: {selectedUser.authUser.emailConfirmedAt ? 'yes' : 'no'}</p>
@@ -361,16 +431,49 @@
             <div class="mt-4 flex flex-wrap gap-2">
               <button class="btn btn-secondary" onclick={() => runUserAction('grant_dashboard')}>Dashboard</button>
               <button class="btn btn-secondary" onclick={() => runUserAction('grant_admin')}>Admin</button>
-              <button class="btn btn-secondary" onclick={() => runUserAction('remove_access')}>Remove access</button>
-              <button class="btn btn-secondary" onclick={() => runUserAction(selectedUser?.profile.is_blocked ? 'unblock' : 'block')}>
+              <button class="btn btn-danger" onclick={() => runUserAction('remove_access')}>Remove access</button>
+              <button class={selectedUser.profile.is_blocked ? 'btn btn-secondary' : 'btn btn-danger'} onclick={() => runUserAction(selectedUser?.profile.is_blocked ? 'unblock' : 'block')}>
                 {selectedUser.profile.is_blocked ? 'Unblock' : 'Block'}
               </button>
-              <button class="btn btn-secondary" style="color: var(--danger);" onclick={() => runUserAction('delete')}>Delete</button>
+              <button class="btn btn-danger" onclick={() => runUserAction('delete')}>Delete</button>
             </div>
           </div>
           <div class="panel-muted p-4">
-            <h2 class="text-lg font-black">Raw profile data</h2>
-            <pre class="mt-3 max-h-80 overflow-auto rounded-md border p-3 text-xs" style="border-color: var(--border);">{JSON.stringify(selectedUser, null, 2)}</pre>
+            <h2 class="text-lg font-black">Detailed profile data</h2>
+            <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Profile email</dt>
+                <dd class="mt-1 break-words font-semibold">{selectedUser.profile.email}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Full name</dt>
+                <dd class="mt-1 break-words font-semibold">{selectedUser.profile.full_name ?? 'Not set'}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">User ID</dt>
+                <dd class="mt-1 break-all font-semibold">{selectedUser.profile.id}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Auth email</dt>
+                <dd class="mt-1 break-words font-semibold">{selectedUser.authUser?.email ?? 'Not available'}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Account created</dt>
+                <dd class="mt-1 font-semibold">{selectedUser.authUser?.createdAt ? new Date(selectedUser.authUser.createdAt).toLocaleString() : new Date(selectedUser.profile.created_at).toLocaleString()}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Last sign-in</dt>
+                <dd class="mt-1 font-semibold">{selectedUser.authUser?.lastSignInAt ? new Date(selectedUser.authUser.lastSignInAt).toLocaleString() : 'Never'}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Email confirmed</dt>
+                <dd class="mt-1 font-semibold">{selectedUser.authUser?.emailConfirmedAt ? 'Yes' : 'No'}</dd>
+              </div>
+              <div class="rounded-md border p-3" style="border-color: var(--border);">
+                <dt class="muted">Banned until</dt>
+                <dd class="mt-1 font-semibold">{selectedUser.authUser?.bannedUntil ? new Date(selectedUser.authUser.bannedUntil).toLocaleString() : 'Not banned'}</dd>
+              </div>
+            </dl>
           </div>
         </div>
 
@@ -383,6 +486,9 @@
                   <p class="font-black">{inbox.email_address}</p>
                   <p class="mt-1 muted">{inbox.status ?? 'unknown'} · {new Date(inbox.created_at).toLocaleString()}</p>
                   <p class="mt-1 muted">IP: {inbox.ip_address ?? 'unknown'}</p>
+                  {#if selectedUser.stats.byInbox[inbox.id]}
+                    <p class="mt-1 muted">Used {selectedUser.stats.byInbox[inbox.id].receivedCount} times · OTP {selectedUser.stats.byInbox[inbox.id].otpCount} times</p>
+                  {/if}
                 </article>
               {:else}
                 <p class="p-3 text-sm muted">No mails created.</p>
@@ -390,21 +496,18 @@
             </div>
           </section>
           <section>
-            <h2 class="text-lg font-black">Received mail and codes</h2>
+            <h2 class="text-lg font-black">Recent mail and codes</h2>
             <div class="mt-3 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--border);">
-              {#each selectedUser.emails as mail}
+              {#each selectedUser.recentEmails as mail}
                 <article class="border-b p-3 text-sm last:border-b-0" style="border-color: var(--border);">
                   <p class="font-black">{mail.detected_code ?? 'No code'}</p>
                   <p class="mt-1 font-semibold">{mail.subject ?? 'No subject'}</p>
                   <p class="mt-1 muted">{mail.sender_email ?? 'unknown'} → {mail.recipient_email}</p>
                   <p class="mt-1 muted">{mail.received_at ? new Date(mail.received_at).toLocaleString() : new Date(mail.created_at).toLocaleString()}</p>
-                  <details class="mt-2">
-                    <summary class="font-semibold">Stored body</summary>
-                    <pre class="mt-2 whitespace-pre-wrap rounded-md border p-3 text-xs" style="border-color: var(--border);">{mail.full_body ?? mail.body_preview ?? ''}</pre>
-                  </details>
+                  <p class="mt-2 muted">{mail.body_preview ?? 'No preview'}</p>
                 </article>
               {:else}
-                <p class="p-3 text-sm muted">No received mails.</p>
+                <p class="p-3 text-sm muted">No recent mail content. OTP text is scrubbed after 20 minutes, but counts stay available.</p>
               {/each}
             </div>
           </section>
@@ -413,7 +516,9 @@
         <p class="mt-3 rounded-lg border p-3 text-sm muted" style="border-color: var(--border);">Click a user in the access list to view complete profile, inbox, and mail data.</p>
       {/if}
     </section>
+  {/if}
 
+  {#if isMainAdmin && showInboxesView}
     <section class="panel p-4 sm:p-5" aria-labelledby="mail-title">
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -438,6 +543,7 @@
             <div>
               <p class="font-semibold">{inbox.ownerEmail ?? inbox.userId}</p>
               <p class="mt-1 muted">{inbox.ownerRole ?? 'user'} · {inbox.status ?? 'unknown'}</p>
+              <p class="mt-1 muted">Used {inbox.stats.receivedCount} times · OTP {inbox.stats.otpCount} times</p>
             </div>
             <div>
               {#if inbox.latestMessage}
@@ -464,6 +570,7 @@
     </section>
   {/if}
 
+  {#if showSystemView}
   <section class="panel p-4 sm:p-5" aria-labelledby="system-title">
     <div class="flex items-center justify-between gap-3">
       <div>
@@ -505,4 +612,5 @@
       </div>
     {/if}
   </section>
+  {/if}
 </main>

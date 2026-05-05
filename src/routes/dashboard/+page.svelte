@@ -1,5 +1,6 @@
 <script lang="ts">
 	import JackpotOtp from '$lib/components/JackpotOtp.svelte';
+	import Icon from '$lib/components/Icon.svelte';
 	import { supabase } from '$lib/supabase/client';
 	import type { InboxMessage, TempInbox } from '$lib/types';
 	import type { PageData } from './$types';
@@ -31,6 +32,7 @@
 	let dark = $state(false);
 	let palette = $state('default');
 	let menuOpen = $state(false);
+	let menuTab = $state<'pages' | 'theme' | 'more'>('pages');
 	let profileOpen = $state(false);
 	let expandedHelper = $state<string | null>(null);
 	let expandedMessageId = $state<string | null>(null);
@@ -47,6 +49,7 @@
 	let scrollSaveTimer: ReturnType<typeof setTimeout> | undefined;
 	let systemThemeQuery: MediaQueryList | undefined;
 	let systemThemeListener: ((event: MediaQueryListEvent) => void) | undefined;
+	let menuWrapper: HTMLDivElement | null = null;
 
 	const cuteProfiles = [
 		{ name: 'Pixel Pilot', emoji: '🚀' },
@@ -57,15 +60,19 @@
 	];
 
 	const palettes = [
-		{ id: 'default', label: 'Default', swatch: '#00ADB5' },
-		{ id: 'ocean', label: 'Ocean', swatch: '#38BDF8' },
-		{ id: 'forest', label: 'Forest', swatch: '#34D399' },
-		{ id: 'rose', label: 'Rose', swatch: '#F472B6' },
-		{ id: 'slate', label: 'Slate', swatch: '#60A5FA' },
-		{ id: 'neon', label: 'Neon Glass', swatch: '#45D89E' }
+		{ id: 'default', label: 'Default', swatch: 'linear-gradient(135deg,#00ADB5,#EEEEEE)', tone: 'Two tone' },
+		{ id: 'ocean', label: 'Ocean', swatch: 'linear-gradient(135deg,#38BDF8,#172033)', tone: 'Two tone' },
+		{ id: 'forest', label: 'Forest', swatch: 'linear-gradient(135deg,#34D399,#18251F)', tone: 'Two tone' },
+		{ id: 'rose', label: 'Rose', swatch: 'linear-gradient(135deg,#F472B6,#2D1B2F)', tone: 'Two tone' },
+		{ id: 'slate', label: 'Slate', swatch: 'linear-gradient(135deg,#60A5FA,#222831)', tone: 'Two tone' },
+		{ id: 'lagoon', label: 'Lagoon', swatch: 'linear-gradient(135deg,#2DD4BF,#7DD3FC,#102926)', tone: 'Multi tone' },
+		{ id: 'sunset', label: 'Sunset', swatch: 'linear-gradient(135deg,#FB7185,#FBBF24,#2B1F2F)', tone: 'Multi tone' },
+		{ id: 'citrus', label: 'Citrus', swatch: 'linear-gradient(135deg,#A3E635,#2DD4BF,#172419)', tone: 'Multi tone' },
+		{ id: 'prism', label: 'Prism', swatch: 'linear-gradient(135deg,#A78BFA,#22D3EE,#F472B6)', tone: 'Multi tone' },
+		{ id: 'neon', label: 'Neon Glass', swatch: 'linear-gradient(135deg,#45D89E,#9258FF,#10141D)', tone: 'Multi tone' }
 	];
-	const OTP_CHECK_WINDOW_MS = 10 * 60 * 1000;
-	const OTP_CHECK_INTERVAL_MS = 8_500;
+	const OTP_CHECK_WINDOW_MS = 30 * 1000;
+	const OTP_CHECK_INTERVAL_MS = 4_000;
 
 	const selectedInbox = $derived(
 		inboxes.find((inbox) => inbox.id === selectedId) ?? inboxes[0] ?? null
@@ -80,8 +87,9 @@
 	const displayProfileName = $derived(
 		data.displayName === 'Guest' ? cuteProfile.name : data.displayName || cuteProfile.name
 	);
-	const syncCooldownRemaining = $derived(Math.max(0, Math.ceil((syncCooldownUntil - now) / 10000)));
-	const smartCheckRemaining = $derived(Math.max(0, Math.ceil((smartCheckUntil - now) / 10000)));
+	const canUseAdmin = $derived(data.role === 'admin' || data.role === 'main_admin');
+	const syncCooldownRemaining = $derived(Math.max(0, Math.ceil((syncCooldownUntil - now) / 1000)));
+	const smartCheckRemaining = $derived(Math.max(0, Math.ceil((smartCheckUntil - now) / 1000)));
 	const smartCheckActive = $derived(smartCheckRemaining > 0 && !latestCode);
 	const filteredMessages = $derived(
 		messages.filter((message) => {
@@ -305,14 +313,20 @@
 		smartCheckTimer = setTimeout(runOnce, 250);
 	}
 
+	function stopSmartCheck() {
+		if (smartCheckTimer) clearTimeout(smartCheckTimer);
+		smartCheckUntil = 0;
+		checkingMail = false;
+		showToast('OTP checking stopped', 'info');
+	}
+
 	async function selectInbox(inbox: TempInbox) {
 		selectedId = inbox.id;
 		rowActionsOpenId = inbox.id;
 		messages = [];
 		latestCode = null;
-		await navigator.clipboard.writeText(inbox.emailAddress).catch(() => undefined);
 		startSmartCheck(inbox.id);
-		showToast('Mail selected and copied', 'info');
+		showToast('Mail selected', 'info');
 	}
 
 	async function deleteInbox(id: string) {
@@ -382,12 +396,27 @@
 		if (event.key === 'Escape') closeOverlays();
 	}
 
+	function handleDocumentPointerdown(event: PointerEvent) {
+		if (!menuOpen || !menuWrapper) return;
+		const target = event.target;
+		if (target instanceof Node && !menuWrapper.contains(target)) menuOpen = false;
+	}
+
 	function handleScroll() {
 		if (scrollSaveTimer) clearTimeout(scrollSaveTimer);
 		scrollSaveTimer = setTimeout(() => {
 			sessionStorage.setItem('scroll-position-dashboard', String(window.scrollY));
 		}, 120);
 	}
+
+	$effect(() => {
+		if (!browser) return;
+		document.body.style.overflow = menuOpen ? 'hidden' : '';
+
+		return () => {
+			document.body.style.overflow = '';
+		};
+	});
 
 	onMount(() => {
 		const storedTheme = (localStorage.getItem('theme') as ThemeMode | null) ?? 'system';
@@ -413,6 +442,7 @@
 		});
 		clockTimer = setInterval(() => (now = Date.now()), 1000);
 		window.addEventListener('keydown', handleKeydown);
+		window.addEventListener('pointerdown', handleDocumentPointerdown, true);
 		window.addEventListener('scroll', handleScroll, { passive: true });
 	});
 
@@ -425,6 +455,7 @@
 		if (systemThemeQuery && systemThemeListener)
 			systemThemeQuery.removeEventListener('change', systemThemeListener);
 		window.removeEventListener('keydown', handleKeydown);
+		window.removeEventListener('pointerdown', handleDocumentPointerdown, true);
 		window.removeEventListener('scroll', handleScroll);
 	});
 </script>
@@ -455,20 +486,26 @@
 			</span>
 		</div>
 
-		<nav class="nav-pills" aria-label="Page sections">
-			<a href="#generate">Mail Generator</a>
-			<a href="#otp">OTP Viewer</a>
-			<a href="#messages">Messages</a>
-			<a href="#history">History</a>
+		<nav class="nav-pills" aria-label="App pages">
+			<a href="/quick">Quick</a>
+			<a href="/dashboard">Dashboard</a>
+			{#if canUseAdmin}
+				<a href="/admin">Admin</a>
+				<a href="/admin/users">Users</a>
+				<a href="/admin/inboxes">Inboxes</a>
+				<a href="/admin/system">System</a>
+			{/if}
 		</nav>
 
-		<div class="relative flex items-center justify-end gap-2">
+		<div class="relative flex items-center justify-end gap-2" bind:this={menuWrapper}>
 			<div class="hidden md:block">
 				<button
-					class="theme-switch"
+					class="theme-switch has-tooltip"
 					onclick={() => applyTheme(dark ? 'light' : 'dark')}
 					aria-label="Toggle day and night theme"
 					aria-pressed={dark}
+					data-tooltip={dark ? 'Day mode' : 'Night mode'}
+					title={dark ? 'Day mode' : 'Night mode'}
 				>
 					<span aria-hidden="true">☀️</span>
 					<span class="theme-thumb" class:theme-thumb-dark={dark}></span>
@@ -476,99 +513,134 @@
 				</button>
 			</div>
 			<button
-				class="menu-button"
+				class="menu-button has-tooltip"
 				onclick={() => (menuOpen = !menuOpen)}
 				aria-label="Menu"
 				aria-expanded={menuOpen}
+				data-tooltip="Menu"
 				title="Menu"
 			>
-				<span aria-hidden="true">☰</span>
+				<Icon name="menu" size={18} />
 				<span class="hidden sm:inline">Menu</span>
 			</button>
 
 			{#if menuOpen}
+				<button
+					class="menu-backdrop"
+					type="button"
+					aria-label="Close menu"
+					onclick={() => (menuOpen = false)}
+				></button>
 				<nav class="menu-popover top-12 right-0 w-[min(24rem,calc(100vw-2rem))]" aria-label="Menu">
-					<a class="menu-item" href="/dashboard" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">🏠</span><span>Dashboard</span><span class="ml-auto">›</span
-						></a
-					>
-					<a class="menu-item" href="#generate" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">✉️</span><span>Mail Generator</span><span class="ml-auto"
-							>›</span
-						></a
-					>
-					<a class="menu-item" href="#otp" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">🔐</span><span>OTP Viewer</span><span class="ml-auto">›</span
-						></a
-					>
-					<a class="menu-item" href="#messages" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">💬</span><span>Messages</span><span class="ml-auto">›</span
-						></a
-					>
-					<a class="menu-item" href="#history" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">🕘</span><span>Previous Inboxes</span><span class="ml-auto"
-							>›</span
-						></a
-					>
-
-					<div class="menu-group">
-						<p>Theme</p>
-						<div class="grid grid-cols-3 gap-2">
-							<button
-								class="palette-option {themeMode === 'light' ? 'palette-option-active' : ''}"
-								onclick={() => applyTheme('light')}>☀️ Light</button
-							>
-							<button
-								class="palette-option {themeMode === 'dark' ? 'palette-option-active' : ''}"
-								onclick={() => applyTheme('dark')}>🌙 Dark</button
-							>
-							<button
-								class="palette-option {themeMode === 'system' ? 'palette-option-active' : ''}"
-								onclick={() => applyTheme('system')}>🖥️ System</button
-							>
-						</div>
+					<div class="menu-tabs" role="tablist" aria-label="Menu sections">
+						<button
+							class:menu-tab-active={menuTab === 'pages'}
+							role="tab"
+							aria-selected={menuTab === 'pages'}
+							onclick={() => (menuTab = 'pages')}>Pages</button
+						>
+						<button
+							class:menu-tab-active={menuTab === 'theme'}
+							role="tab"
+							aria-selected={menuTab === 'theme'}
+							onclick={() => (menuTab = 'theme')}>Theme</button
+						>
+						<button
+							class:menu-tab-active={menuTab === 'more'}
+							role="tab"
+							aria-selected={menuTab === 'more'}
+							onclick={() => (menuTab = 'more')}>More</button
+						>
 					</div>
 
-					<div class="menu-group">
-						<p>Theme Palette</p>
-						<div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
-							{#each palettes as option}
-								<button
-									class="palette-option {palette === option.id ? 'palette-option-active' : ''}"
-									onclick={() => setPalette(option.id)}
-									aria-label={`Use ${option.label} palette`}
-								>
-									<span class="h-4 w-4 rounded-full" style={`background: ${option.swatch};`}></span>
-									<span>{option.label}</span>
-								</button>
-							{/each}
-						</div>
-					</div>
+					<div class="menu-panel">
+						{#if menuTab === 'pages'}
+							<a class="menu-item" href="/dashboard" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="home" /></span><span>Dashboard</span><span class="menu-chevron">›</span
+								></a
+							>
+							<a class="menu-item" href="#generate" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="mail" /></span><span>Mail Generator</span><span class="menu-chevron"
+									>›</span
+								></a
+							>
+							<a class="menu-item" href="#otp" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="key" /></span><span>OTP Viewer</span><span class="menu-chevron">›</span
+								></a
+							>
+							<a class="menu-item" href="#messages" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="message" /></span><span>Messages</span><span class="menu-chevron">›</span
+								></a
+							>
+							<a class="menu-item" href="#history" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="history" /></span><span>Previous Inboxes</span><span class="menu-chevron"
+									>›</span
+								></a
+							>
+						{:else if menuTab === 'theme'}
+							<div class="menu-group">
+								<p>Mode</p>
+								<div class="grid grid-cols-3 gap-2">
+									<button
+										class="palette-option {themeMode === 'light' ? 'palette-option-active' : ''}"
+										onclick={() => applyTheme('light')}><span class="menu-icon"><Icon name="sun" /></span><span>Light</span></button
+									>
+									<button
+										class="palette-option {themeMode === 'dark' ? 'palette-option-active' : ''}"
+										onclick={() => applyTheme('dark')}><span class="menu-icon"><Icon name="moon" /></span><span>Dark</span></button
+									>
+									<button
+										class="palette-option {themeMode === 'system' ? 'palette-option-active' : ''}"
+										onclick={() => applyTheme('system')}><span class="menu-icon"><Icon name="monitor" /></span><span>System</span></button
+									>
+								</div>
+							</div>
 
-					<button class="menu-item w-full" onclick={() => (profileOpen = !profileOpen)}
-						><span aria-hidden="true">👤</span><span>Profile</span><span class="ml-auto">›</span
-						></button
-					>
-					<a class="menu-item" href="#settings" onclick={() => (menuOpen = false)}
-						><span aria-hidden="true">⚙️</span><span>Settings</span></a
-					>
-					<a class="menu-item" href="/privacy"
-						><span aria-hidden="true">🛡️</span><span>Privacy</span></a
-					>
-					<a class="menu-item" href="/terms"><span aria-hidden="true">📜</span><span>Terms</span></a
-					>
-					<a class="menu-item" href="/support"
-						><span aria-hidden="true">💬</span><span>Support: Telegram @PushpaRaaajj</span></a
-					>
-					<a class="menu-item" href="/contact"
-						><span aria-hidden="true">📨</span><span>Contact: Telegram @PushpaRaaajj</span></a
-					>
-					{#if data.role === 'admin'}<a class="menu-item" href="/admin"
-							><span aria-hidden="true">🛡️</span><span>Admin</span></a
-						>{/if}
-					<button class="menu-item w-full" onclick={logout}
-						><span aria-hidden="true">🚪</span><span>Logout</span></button
-					>
+							<div class="menu-group">
+								<p>Palette</p>
+								<div class="palette-scroll">
+									{#each palettes as option}
+										<button
+											class="palette-option {palette === option.id ? 'palette-option-active' : ''}"
+											onclick={() => setPalette(option.id)}
+											aria-label={`Use ${option.label} palette`}
+										>
+											<span class="palette-swatch" style={`background: ${option.swatch};`}></span>
+											<span class="min-w-0">
+												<span class="block truncate">{option.label}</span>
+												<span class="muted block text-xs">{option.tone}</span>
+											</span>
+										</button>
+									{/each}
+								</div>
+							</div>
+						{:else}
+							<button class="menu-item w-full" onclick={() => (profileOpen = !profileOpen)}
+								><span class="menu-icon"><Icon name="user" /></span><span>Profile</span><span class="menu-chevron">›</span
+								></button
+							>
+							<a class="menu-item" href="#settings" onclick={() => (menuOpen = false)}
+								><span class="menu-icon"><Icon name="settings" /></span><span>Settings</span></a
+							>
+							<a class="menu-item" href="/privacy"
+								><span class="menu-icon"><Icon name="shield" /></span><span>Privacy</span></a
+							>
+							<a class="menu-item" href="/terms"><span class="menu-icon"><Icon name="file" /></span><span>Terms</span></a
+							>
+							<a class="menu-item" href="/support"
+								><span class="menu-icon"><Icon name="message" /></span><span>Support: Telegram @PushpaRaaajj</span></a
+							>
+							<a class="menu-item" href="/contact"
+								><span class="menu-icon"><Icon name="send" /></span><span>Contact: Telegram @PushpaRaaajj</span></a
+							>
+							{#if data.role === 'admin'}<a class="menu-item" href="/admin"
+									><span class="menu-icon"><Icon name="shield" /></span><span>Admin</span></a
+								>{/if}
+							<button class="menu-item danger-text w-full" onclick={logout}
+								><span class="menu-icon"><Icon name="log-out" /></span><span>Logout</span></button
+							>
+						{/if}
+					</div>
 				</nav>
 			{/if}
 		</div>
@@ -585,7 +657,7 @@
 
 	<main class="mt-4 space-y-4">
 		<section class="compact-helper-grid" aria-label="Quick account and help">
-			{#each [{ id: 'how', icon: '⚡', title: 'How it works', summary: 'Private OTP inboxes, made simple.', body: 'Create an alias, use it for verification, then copy the OTP when it arrives.', steps: ['Create a custom alias', 'Use it in the app or website', 'Click Get Verification Code', 'Copy the OTP'] }, { id: 'account', icon: '👤', title: 'Account details', summary: `${inboxes.length} aliases · ${messages.length} messages`, body: `Signed in as ${data.email || displayProfileName}. Your inboxes and messages stay scoped to your account.`, steps: ['Pick or create an alias', 'Keep useful notes locally', 'Delete aliases you no longer need'] }, { id: 'tips', icon: '💡', title: 'Quick tips', summary: 'Use your alias, then check mail.', body: 'OtpNest checks automatically for about 40 seconds after you create or select an alias. If the code still has not arrived, press Get Verification Code.', steps: ['Create or select alias', 'Request OTP on the other site', 'Wait for smart check', 'Use manual check if needed'] }] as card}
+			{#each [{ id: 'how', icon: '⚡', title: 'How it works', summary: 'Private OTP inboxes, made simple.', body: 'Create an alias, use it for verification, then copy the OTP when it arrives.', steps: ['Create a custom alias', 'Use it in the app or website', 'Click Get Verification Code', 'Copy the OTP'] }, { id: 'account', icon: '👤', title: 'Account details', summary: `${inboxes.length} aliases · ${messages.length} messages`, body: `Signed in as ${data.email || displayProfileName}. Your inboxes and messages stay scoped to your account.`, steps: ['Pick or create an alias', 'Keep useful notes locally', 'Delete aliases you no longer need'] }, { id: 'tips', icon: '💡', title: 'Quick tips', summary: 'Use your alias, then check mail.', body: 'OtpNest checks automatically for about 30 seconds after you create or select an alias. If the code still has not arrived, press Get Verification Code.', steps: ['Create or select alias', 'Request OTP on the other site', 'Wait for smart check', 'Use manual check if needed'] }] as card}
 				<article
 					class="compact-helper-card"
 					class:compact-helper-expanded={expandedHelper === card.id}
@@ -701,24 +773,7 @@
 									aria-label="Copy selected mail"
 									title="Copy mail"
 								>
-									<svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-										<rect
-											x="9"
-											y="9"
-											width="11"
-											height="11"
-											rx="2"
-											stroke="currentColor"
-											stroke-width="2"
-										></rect>
-										<path
-											d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-											stroke="currentColor"
-											stroke-width="2"
-											stroke-linecap="round"
-											stroke-linejoin="round"
-										></path>
-									</svg>
+									<Icon name="copy" size={16} />
 								</button>
 							</div>
 						{:else}
@@ -749,6 +804,17 @@
 								Get Code
 							{/if}
 						</button>
+						{#if checkingMail || smartCheckActive}
+							<button
+								class="btn btn-secondary"
+								onclick={stopSmartCheck}
+								aria-label="Stop OTP checking animation"
+								title="Stop OTP checking"
+							>
+								<Icon name="pause" size={16} />
+								<span>Stop</span>
+							</button>
+						{/if}
 					</div>
 				</div>
 
@@ -760,15 +826,13 @@
 						<JackpotOtp code={latestCode} spinning={checkingMail || smartCheckActive} length={6} />
 						{#if latestCode}
 							<button
-								class="otp-copy-button"
+								class="otp-copy-button has-tooltip"
 								onclick={() => copyToClipboard(latestCode ?? '', 'OTP')}
 								aria-label={`Copy OTP ${latestCode}`}
+								data-tooltip="Copy OTP"
 								title="Copy OTP"
 							>
-								<svg viewBox="0 0 24 24" aria-hidden="true">
-									<rect x="9" y="9" width="11" height="11" rx="2"></rect>
-									<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-								</svg>
+								<Icon name="copy" size={20} />
 							</button>
 						{/if}
 					</div>
@@ -925,11 +989,7 @@
 								onmouseenter={() => (rowActionsOpenId = inbox.id)}
 								onmouseleave={() => (rowActionsOpenId = null)}
 							>
-								<button
-									class="min-w-0 flex-1 text-left"
-									onclick={() => selectInbox(inbox)}
-									aria-label={`Select ${inbox.emailAddress}`}
-								>
+								<div class="min-w-0 flex-1 text-left">
 									<span class="block truncate text-sm font-black">{inbox.emailAddress}</span>
 									<span class="muted mt-1 block text-xs"
 										>Created {formatShortDate(inbox.createdAt)}{remaining === 'Expired'
@@ -939,43 +999,45 @@
 									{#if mailNotes[inbox.id]}<span class="mt-2 block truncate text-xs"
 											>{mailNotes[inbox.id]}</span
 										>{/if}
-								</button>
+								</div>
 								<span class="badge">{remaining === 'Expired' ? 'expired' : 'active'}</span>
 								<button
-									class="icon-action md:hidden"
+									class="icon-action has-tooltip md:hidden"
 									onclick={() =>
 										(rowActionsOpenId = rowActionsOpenId === inbox.id ? null : inbox.id)}
-									aria-label="Open alias actions">⋯</button
+									aria-label="Open alias actions"
+									data-tooltip="Actions"
+									title="Actions"><Icon name="more" size={16} /></button
 								>
 
 								{#if rowActionsOpenId === inbox.id}
 									<div class="history-actions">
 										<button
-											class="icon-action"
+											class="icon-action has-tooltip"
 											onclick={() => copyToClipboard(inbox.emailAddress, 'Mail')}
 											aria-label="Copy mail"
+											data-tooltip="Copy mail"
+											title="Copy mail"
 										>
-											<svg viewBox="0 0 24 24" aria-hidden="true"
-												><path d="M8 8h10v12H8z" /><path d="M6 16H4V4h12v2" /></svg
-											>
+											<Icon name="copy" size={16} />
 										</button>
 										<button
-											class="icon-action"
+											class="icon-action has-tooltip"
 											onclick={() => selectInbox(inbox)}
 											aria-label="Select mail"
+											data-tooltip="Select mail"
+											title="Select mail"
 										>
-											<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m20 6-11 11-5-5" /></svg>
+											<Icon name="check" size={16} />
 										</button>
 										<button
-											class="icon-action danger"
+											class="icon-action danger has-tooltip"
 											onclick={() => (deleteTarget = inbox)}
 											aria-label="Delete alias"
+											data-tooltip="Delete alias"
+											title="Delete alias"
 										>
-											<svg viewBox="0 0 24 24" aria-hidden="true"
-												><path d="M3 6h18" /><path d="M8 6V4h8v2" /><path
-													d="M6 6l1 14h10l1-14"
-												/><path d="M10 11v5" /><path d="M14 11v5" /></svg
-											>
+											<Icon name="trash" size={16} />
 										</button>
 									</div>
 								{/if}

@@ -1,12 +1,14 @@
 import { rateLimit } from '$lib/server/rate-limit';
 import { requireUser } from '$lib/server/auth';
+import { purgeExpiredReceivedEmails } from '$lib/server/cleanup';
 import { extractOtp } from '$lib/shared/otp';
 import { json, error } from '@sveltejs/kit';
 
-const OTP_WINDOW_MINUTES = 10;
+const OTP_WINDOW_MINUTES = 20;
 
 export async function GET(event) {
 	const { user } = await requireUser(event);
+	await purgeExpiredReceivedEmails();
 	const limited = rateLimit(`refresh:${user.id}`, 1, 5 * 1000);
 
 	if (!limited.ok) {

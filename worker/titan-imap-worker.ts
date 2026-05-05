@@ -27,8 +27,9 @@ const {
 
 const POLL_INTERVAL_MS = 3_000;
 const FETCH_BATCH_SIZE = 15;
-const OTP_WINDOW_MINUTES = 10;
+const OTP_WINDOW_MINUTES = 20;
 const MAX_BACKOFF_MS = 60_000;
+const STORED_EMAIL_RETENTION_MINUTES = 20;
 
 if (!PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 	throw new Error('PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
@@ -79,6 +80,57 @@ type MatchResult =
 async function logWorker(action: string, metadata: Record<string, unknown>) {
 	const { error } = await supabase.from('audit_logs').insert({ action, metadata });
 	if (error) console.warn('[worker] audit log failed:', error.message);
+}
+
+async function purgeExpiredReceivedEmails() {
+	const cutoff = new Date(Date.now() - STORED_EMAIL_RETENTION_MINUTES * 60 * 1000).toISOString();
+	const { error } = await supabase
+		.from('received_emails')
+		.update({
+			subject: null,
+			body_preview: null,
+			full_body: null,
+			detected_code: null
+		})
+		.lt('created_at', cutoff)
+		.or('subject.not.is.null,body_preview.not.is.null,full_body.not.is.null,detected_code.not.is.null');
+	if (error) {
+		console.warn('[worker] failed to scrub expired received email content:', error.message);
+	}
+}
+
+async function incrementInboxUsage(input: {
+	inbox: InboxRow;
+	receivedAt: string;
+	hasOtp: boolean;
+}) {
+	const { data: existing, error: readError } = await supabase
+		.from('inbox_usage_stats')
+		.select('received_count,otp_count,last_otp_at')
+		.eq('inbox_id', input.inbox.id)
+		.maybeSingle();
+
+	if (readError) {
+		console.warn('[worker] failed to read usage stats:', readError.message);
+		return;
+	}
+
+	const receivedCount = (existing?.received_count ?? 0) + 1;
+	const otpCount = (existing?.otp_count ?? 0) + (input.hasOtp ? 1 : 0);
+	const { error } = await supabase.from('inbox_usage_stats').upsert({
+		inbox_id: input.inbox.id,
+		user_id: input.inbox.user_id,
+		email_address: input.inbox.email_address,
+		received_count: receivedCount,
+		otp_count: otpCount,
+		last_received_at: input.receivedAt,
+		last_otp_at: input.hasOtp ? input.receivedAt : (existing?.last_otp_at ?? null),
+		updated_at: new Date().toISOString()
+	});
+
+	if (error) {
+		console.warn('[worker] failed to update usage stats:', error.message);
+	}
 }
 
 /** Terminal states that never need to be re-processed. Unmatched messages are deliberately retryable. */
@@ -548,6 +600,7 @@ async function processMessage(
 	}
 
 	await recordProcessed(messageId, 'matched');
+	await incrementInboxUsage({ inbox, receivedAt, hasOtp: Boolean(detectedCode) });
 	await logProcessing({
 		messageId,
 		fromEmail: sender,
@@ -645,6 +698,7 @@ async function runForever() {
 
 	for (;;) {
 		try {
+			await purgeExpiredReceivedEmails();
 			await pollOnce();
 			backoff = POLL_INTERVAL_MS;
 		} catch (err) {

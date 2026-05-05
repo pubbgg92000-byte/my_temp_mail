@@ -10,6 +10,9 @@
 	}>();
 
 	const digits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+	let spinStartedAt = $state<number | null>(null);
+	let animationNow = $state(Date.now());
+	let spinTimer: ReturnType<typeof setInterval> | undefined;
 	const reelIndexes = $derived(Array.from({ length }, (_, index) => index));
 	const normalizedCode = $derived(
 		String(code || '')
@@ -17,10 +20,50 @@
 			.padStart(length, '0')
 			.slice(0, length)
 	);
+	const spinDuration = $derived(
+		spinning && spinStartedAt
+			? Math.max(0.14, 0.82 - Math.min(0.58, ((animationNow - spinStartedAt) / 30000) * 0.58))
+			: 0.28
+	);
+
+	function reelStyle(index: number) {
+		const target = Number(normalizedCode[index] || 0);
+		const speedOffset = [0.04, -0.03, 0.08, -0.06, 0.02, -0.01, 0.06, -0.04][index % 8];
+		const spinSpeed = Math.max(0.12, spinDuration + speedOffset);
+		const settleDelay = 0.08 + index * 0.18 + (index % 2) * 0.06;
+		const settleDuration = 0.7 + (index % 3) * 0.18;
+		return [
+			`--target: ${target}`,
+			`--delay: ${settleDelay}s`,
+			`--settle-duration: ${settleDuration}s`,
+			`--spin-duration: ${spinSpeed}s`,
+			`--spin-phase: ${index * -0.11}s`
+		].join('; ');
+	}
+
+	$effect(() => {
+		if (!spinning) {
+			spinStartedAt = null;
+			if (spinTimer) clearInterval(spinTimer);
+			spinTimer = undefined;
+			return;
+		}
+
+		spinStartedAt ??= Date.now();
+		animationNow = Date.now();
+		spinTimer = setInterval(() => {
+			animationNow = Date.now();
+		}, 300);
+
+		return () => {
+			if (spinTimer) clearInterval(spinTimer);
+			spinTimer = undefined;
+		};
+	});
 </script>
 
 <div
-	class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg border border-emerald-400/30 bg-slate-950/60 p-3 shadow-[0_0_60px_rgba(52,211,153,0.13)] sm:gap-3 sm:p-4"
+	class="mx-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-lg border p-3 sm:gap-3 sm:p-4"
 	aria-label={spinning ? 'Verification code reels spinning' : `Verification code ${normalizedCode}`}
 >
 	{#each reelIndexes as _, index}
@@ -28,7 +71,7 @@
 			<div
 				class:spin={spinning}
 				class="reel-strip"
-				style={`--target: ${Number(normalizedCode[index] || 0)}; --delay: ${index * 0.15}s`}
+				style={reelStyle(index)}
 			>
 				{#each digits as digit}
 					<div class="digit">{digit}</div>
@@ -45,13 +88,13 @@
 		height: clamp(3.15rem, 8vw, 7.75rem);
 		overflow: hidden;
 		border-radius: 9999px;
-		border: 2px solid rgba(52, 211, 153, 0.45);
+		border: 2px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 42%, transparent);
 		background:
-			radial-gradient(circle at center, rgba(52, 211, 153, 0.16), transparent 60%),
-			linear-gradient(180deg, #101827, #1f2937);
+			radial-gradient(circle at 50% 26%, color-mix(in srgb, var(--otp-digit, #49dfaa) 22%, transparent), transparent 58%),
+			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 88%, #ffffff 4%), var(--otp-bg, #101827));
 		box-shadow:
 			inset 0 0 30px rgba(0, 0, 0, 0.7),
-			0 0 28px rgba(52, 211, 153, 0.15);
+			0 0 28px var(--otp-glow, rgba(52, 211, 153, 0.15));
 		flex: 0 0 auto;
 	}
 
@@ -68,12 +111,12 @@
 
 	.reel-window::before {
 		top: 0;
-		background: linear-gradient(to bottom, rgba(15, 23, 42, 0.95), transparent);
+		background: linear-gradient(to bottom, color-mix(in srgb, var(--otp-bg, #101827) 94%, transparent), transparent);
 	}
 
 	.reel-window::after {
 		bottom: 0;
-		background: linear-gradient(to top, rgba(15, 23, 42, 0.95), transparent);
+		background: linear-gradient(to top, color-mix(in srgb, var(--otp-bg, #101827) 94%, transparent), transparent);
 	}
 
 	.reel-strip {
@@ -81,7 +124,7 @@
 
 		transform: translateY(calc(var(--target) * var(--digit-size) * -1));
 		transition:
-			transform 1.2s cubic-bezier(0.12, 0.75, 0.2, 1.1),
+			transform var(--settle-duration, 1.2s) cubic-bezier(0.12, 0.75, 0.2, 1.1),
 			filter 0.4s ease;
 		transition-delay: var(--delay);
 	}
@@ -93,14 +136,15 @@
 		font-size: clamp(2rem, 5.7vw, 5.15rem);
 		font-weight: 950;
 		line-height: 1;
-		color: #49dfaa;
+		color: var(--otp-digit, #49dfaa);
 		text-shadow:
-			0 0 18px rgba(52, 211, 153, 0.7),
+			0 0 18px var(--otp-glow, rgba(52, 211, 153, 0.7)),
 			0 8px 18px rgba(0, 0, 0, 0.5);
 	}
 
 	.spin {
-		animation: jackpot-reel-spin 0.28s linear infinite;
+		animation: jackpot-reel-spin var(--spin-duration, 0.28s) linear infinite;
+		animation-delay: var(--spin-phase, 0s);
 		filter: blur(1.5px);
 	}
 
