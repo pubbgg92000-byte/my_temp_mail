@@ -118,11 +118,14 @@
 	.jackpot-shell {
 		position: relative;
 		overflow: hidden;
-		border-color: color-mix(in srgb, var(--otp-digit, #49dfaa) 30%, transparent);
+		border-color: color-mix(in srgb, var(--otp-digit, #49dfaa) 46%, transparent);
 		background:
-			radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--otp-digit, #49dfaa) 18%, transparent), transparent 42%),
+			radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--otp-digit, #49dfaa) 28%, transparent), transparent 42%),
+			radial-gradient(circle at 50% 115%, color-mix(in srgb, var(--otp-digit, #49dfaa) 34%, transparent), transparent 48%),
 			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 88%, #ffffff 5%), color-mix(in srgb, var(--otp-bg, #101827) 96%, #000000 12%));
-		box-shadow: 0 22px 70px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 36%, transparent);
+		box-shadow:
+			0 0 24px color-mix(in srgb, var(--otp-digit, #49dfaa) 30%, transparent),
+			0 22px 90px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 76%, transparent);
 	}
 
 	.jackpot-glow {
@@ -130,8 +133,8 @@
 		inset: auto 8% -35% 8%;
 		height: 45%;
 		border-radius: 9999px;
-		background: color-mix(in srgb, var(--otp-digit, #49dfaa) 28%, transparent);
-		filter: blur(52px);
+		background: color-mix(in srgb, var(--otp-digit, #49dfaa) 46%, transparent);
+		filter: blur(46px);
 		pointer-events: none;
 	}
 
@@ -148,8 +151,9 @@
 			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 94%, #ffffff 4%), color-mix(in srgb, var(--otp-bg, #101827) 98%, #000000 22%));
 		box-shadow:
 			inset 0 0 38px rgba(0, 0, 0, 0.88),
-			inset 0 0 30px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
-			0 0 34px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 40%, transparent);
+			inset 0 0 42px color-mix(in srgb, var(--otp-digit, #49dfaa) 22%, transparent),
+			0 0 22px color-mix(in srgb, var(--otp-digit, #49dfaa) 42%, transparent),
+			0 0 54px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 74%, transparent);
 		padding: clamp(0.55rem, 1.7vw, 1.2rem);
 	}
 
@@ -168,9 +172,10 @@
 			linear-gradient(180deg, color-mix(in srgb, var(--otp-bg, #101827) 80%, #ffffff 8%), color-mix(in srgb, var(--otp-bg, #101827) 98%, #000000 28%));
 		box-shadow:
 			inset 0 0 22px rgba(0, 0, 0, 0.9),
-			inset 12px 0 18px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
-			inset -12px 0 18px color-mix(in srgb, var(--otp-digit, #49dfaa) 12%, transparent),
-			0 0 22px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 38%, transparent);
+			inset 12px 0 24px color-mix(in srgb, var(--otp-digit, #49dfaa) 22%, transparent),
+			inset -12px 0 24px color-mix(in srgb, var(--otp-digit, #49dfaa) 22%, transparent),
+			0 0 20px color-mix(in srgb, var(--otp-digit, #49dfaa) 46%, transparent),
+			0 0 44px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.32)) 66%, transparent);
 	}
 
 	.reel-body::before,
@@ -187,7 +192,9 @@
 			color-mix(in srgb, var(--otp-digit, #49dfaa) 45%, #ffffff 48%),
 			color-mix(in srgb, var(--otp-digit, #49dfaa) 20%, transparent)
 		);
-		box-shadow: 0 0 18px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.75)) 82%, transparent);
+		box-shadow:
+			0 0 16px color-mix(in srgb, var(--otp-digit, #49dfaa) 84%, transparent),
+			0 0 34px color-mix(in srgb, var(--otp-glow, rgba(52, 211, 153, 0.75)) 92%, transparent);
 		pointer-events: none;
 	}
 
@@ -221,7 +228,8 @@
 		inset: 12%;
 		border-radius: 0.9rem;
 		border: 1px solid color-mix(in srgb, var(--otp-digit, #49dfaa) 18%, transparent);
-		background: rgba(3, 10, 14, 0.2);
+		background: rgba(3, 10, 14, 0.26);
+		box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.46);
 	}
 
 	.digit-cell span {
@@ -232,11 +240,14 @@
 		line-height: 1;
 		color: var(--otp-digit, #49dfaa);
 		letter-spacing: 0;
+		-webkit-text-stroke: clamp(1px, 0.08em, 5px) rgba(0, 0, 0, 0.72);
+		paint-order: stroke fill;
 		text-shadow:
-			0 0 8px var(--otp-glow, rgba(73, 223, 170, 0.95)),
-			0 0 24px var(--otp-glow, rgba(73, 223, 170, 0.7)),
-			0 14px 20px rgba(0, 0, 0, 0.75);
-		filter: drop-shadow(0 0 6px var(--otp-glow, rgba(73, 223, 170, 0.75)));
+			0 1px 0 rgba(255, 255, 255, 0.34),
+			0 0 4px color-mix(in srgb, var(--otp-digit, #49dfaa) 86%, #ffffff 18%),
+			0 0 10px color-mix(in srgb, var(--otp-digit, #49dfaa) 68%, transparent),
+			1px 2px 0 rgba(0, 0, 0, 0.82),
+			-1px -1px 0 rgba(0, 0, 0, 0.58);
 	}
 
 	.reel-shine {
@@ -245,7 +256,7 @@
 		z-index: 7;
 		background:
 			linear-gradient(90deg, rgba(255, 255, 255, 0.16), transparent 18%, transparent 78%, rgba(255, 255, 255, 0.12)),
-			linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 28%, transparent 70%, color-mix(in srgb, var(--otp-digit, #49dfaa) 10%, transparent));
+			linear-gradient(180deg, rgba(255, 255, 255, 0.12), transparent 28%, transparent 70%, color-mix(in srgb, var(--otp-digit, #49dfaa) 18%, transparent));
 		mix-blend-mode: screen;
 		pointer-events: none;
 	}

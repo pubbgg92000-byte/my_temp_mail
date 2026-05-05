@@ -81,6 +81,12 @@
 		<path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
 	{:else if name === 'check'}
 		<path d="m20 6-11 11-5-5" />
+	{:else if name === 'pipette'}
+		<path d="m2 22 1.5-1.5" />
+		<path d="m14 6 4 4" />
+		<path d="M4 20h4l10.5-10.5a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+		<path d="m13.5 6.5 4-4" />
+		<path d="m15.5 4.5 4 4" />
 	{:else if name === 'trash'}
 		<path d="M3 6h18" />
 		<path d="M8 6V4h8v2" />

@@ -69,6 +69,17 @@
 		{ id: 'sunset', label: 'Sunset', swatch: 'linear-gradient(135deg,#FB7185,#FBBF24,#2B1F2F)', tone: 'Multi tone' },
 		{ id: 'citrus', label: 'Citrus', swatch: 'linear-gradient(135deg,#A3E635,#2DD4BF,#172419)', tone: 'Multi tone' },
 		{ id: 'prism', label: 'Prism', swatch: 'linear-gradient(135deg,#A78BFA,#22D3EE,#F472B6)', tone: 'Multi tone' },
+		{ id: 'sky', label: 'Sky', swatch: 'linear-gradient(135deg,#2563EB,#BFDBFE,#1E293B)', tone: 'Cool blue' },
+		{ id: 'steel', label: 'Steel', swatch: 'linear-gradient(135deg,#475569,#CBD5E1,#1F2937)', tone: 'Cool gray' },
+		{ id: 'mint', label: 'Mint', swatch: 'linear-gradient(135deg,#14B8A6,#A7F3D0,#0F2F2B)', tone: 'Fresh teal' },
+		{ id: 'sage', label: 'Sage', swatch: 'linear-gradient(135deg,#64748B,#D8E2C4,#263322)', tone: 'Soft green' },
+		{ id: 'gold', label: 'Gold', swatch: 'linear-gradient(135deg,#B45309,#FDE68A,#2A2112)', tone: 'Warm gold' },
+		{ id: 'amber', label: 'Amber', swatch: 'linear-gradient(135deg,#EA580C,#FDBA74,#2B1808)', tone: 'Warm orange' },
+		{ id: 'mocha', label: 'Mocha', swatch: 'linear-gradient(135deg,#7C4A35,#E7C8B6,#2A1D18)', tone: 'Soft brown' },
+		{ id: 'berry', label: 'Berry', swatch: 'linear-gradient(135deg,#BE185D,#FDA4AF,#32111F)', tone: 'Deep pink' },
+		{ id: 'mauve', label: 'Mauve', swatch: 'linear-gradient(135deg,#7C3AED,#E9A8DF,#2A173A)', tone: 'Muted purple' },
+		{ id: 'violet', label: 'Violet', swatch: 'linear-gradient(135deg,#6D28D9,#C4B5FD,#21143A)', tone: 'Soft violet' },
+		{ id: 'neon-pulse', label: 'Neon Pulse', swatch: 'linear-gradient(135deg,#00F5FF,#FF2BD6,#B6FF00,#050510)', tone: 'All neon' },
 		{ id: 'neon', label: 'Neon Glass', swatch: 'linear-gradient(135deg,#45D89E,#9258FF,#10141D)', tone: 'Multi tone' }
 	];
 	const OTP_CHECK_WINDOW_MS = 60 * 1000;
