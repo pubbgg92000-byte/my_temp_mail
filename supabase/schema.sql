@@ -313,6 +313,9 @@ begin
   where lower(email) = lower(target_email);
 end;
 $$;
+revoke all on function public.promote_to_admin(text) from public;
+revoke all on function public.promote_to_admin(text) from anon;
+revoke all on function public.promote_to_admin(text) from authenticated;
 
 -- Main admins are intentionally database-only. Promote one trusted owner manually:
 -- update public.profiles set role = 'main_admin', dashboard_access = true where lower(email) = lower('owner@example.com');
@@ -325,3 +328,6 @@ begin
   where lower(email) = lower(target_email);
 end;
 $$;
+revoke all on function public.grant_dashboard_access(text) from public;
+revoke all on function public.grant_dashboard_access(text) from anon;
+revoke all on function public.grant_dashboard_access(text) from authenticated;

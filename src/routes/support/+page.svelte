@@ -4,11 +4,6 @@
 </svelte:head>
 
 <main class="app-shell max-w-4xl space-y-4">
-  <header class="topbar">
-    <a href="/quick" class="font-black">⚡ OtpNest</a>
-    <a class="btn btn-secondary" href="/quick">Quick mail</a>
-  </header>
-
   <section class="section-card">
     <p class="kicker">Support</p>
     <h1 class="mt-2 text-[clamp(2rem,5vw,4rem)] font-black leading-none">Need help?</h1>

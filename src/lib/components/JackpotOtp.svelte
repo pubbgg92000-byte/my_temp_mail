@@ -298,6 +298,28 @@
 		}
 	}
 
+	@media (max-width: 420px) {
+		.jackpot-shell {
+			border-radius: 1.1rem;
+			padding: 0.45rem;
+		}
+
+		.jackpot-frame {
+			gap: 0.22rem;
+			padding: 0.35rem;
+		}
+
+		.reel-body {
+			--digit-size: clamp(2.45rem, 12.2vw, 3rem);
+			border-left-width: 1px;
+			border-right-width: 1px;
+		}
+
+		.digit-cell span {
+			font-size: clamp(1.85rem, 9vw, 2.55rem);
+		}
+	}
+
 	@media (prefers-reduced-motion: reduce) {
 		.spin {
 			animation: none;

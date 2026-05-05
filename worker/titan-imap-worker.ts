@@ -292,16 +292,14 @@ function addAddressObjectValues(
 	}
 }
 
-function rawSearchText(source: Buffer, mail: ParsedMail): string {
+function rawHeaderSearchText(source: Buffer, mail: ParsedMail): string {
 	const headerText = [...mail.headers.entries()]
 		.map(([key, value]) => `${key}: ${stringifyHeaderValue(value)}`)
 		.join('\n');
+	const rawHeaders = source.toString('utf8').split(/\r?\n\r?\n/, 1)[0] ?? '';
 	return [
 		headerText,
-		mail.subject ?? '',
-		mail.text ?? '',
-		typeof mail.html === 'string' ? mail.html : '',
-		source.toString('utf8')
+		rawHeaders
 	]
 		.join('\n')
 		.toLowerCase()
@@ -351,10 +349,6 @@ function extractAllRecipients(mail: ParsedMail, source: Buffer, rawText: string)
 			recipients,
 			headerName !== 'received'
 		);
-	}
-
-	for (const email of extractEmailsFromText(rawText)) {
-		recipients.add(email);
 	}
 
 	extractHeaderRecipientValuesFromRaw(source, recipients);
@@ -437,7 +431,7 @@ function matchInbox(
 			predicate: (inbox) => rawText.includes(inbox.email_address)
 		},
 		{
-			method: 'local_part_raw',
+			method: 'local_part_raw_header',
 			predicate: (inbox) => containsToken(rawText, inbox.local_part)
 		}
 	];
@@ -472,7 +466,7 @@ async function processMessage(
 
 	if (await isTerminal(messageId)) return 'skipped';
 
-	const rawText = rawSearchText(source, mail);
+	const rawText = rawHeaderSearchText(source, mail);
 	const { normalizedRecipients, scopedRecipients, localRecipients } = extractAllRecipients(
 		mail,
 		source,
@@ -487,7 +481,7 @@ async function processMessage(
 		rawText
 	);
 	const sender = mail.from?.value?.[0]?.address ?? mail.from?.text ?? null;
-	const rawDebugPreview = rawText.slice(0, 500);
+	const rawDebugPreview = undefined;
 
 	console.log(`[worker] msgId=${messageId.slice(0, 60)}`);
 	console.log(

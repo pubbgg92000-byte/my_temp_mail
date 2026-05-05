@@ -300,6 +300,7 @@ html {
 
 body {
 	margin: 0;
+	overflow-x: hidden;
 	min-height: 100vh;
 	background:
 		radial-gradient(circle at 22% 0%, color-mix(in srgb, var(--accent-soft) 70%, transparent), transparent 24rem),
@@ -358,7 +359,7 @@ textarea {
 
 @layer components {
 	.app-shell {
-		@apply mx-auto min-h-screen w-full max-w-360 px-4 py-4 sm:px-5 lg:px-6;
+		@apply mx-auto min-h-screen w-full max-w-360 overflow-x-hidden px-4 py-4 sm:px-5 lg:px-6;
 	}
 
 	.dashboard-section {
@@ -368,6 +369,7 @@ textarea {
 
 	.section-card {
 		@apply rounded-lg border p-4 sm:p-5 lg:p-6;
+		min-width: 0;
 		background: color-mix(in srgb, var(--surface) 97%, transparent);
 		border-color: var(--border-strong);
 		box-shadow: var(--shadow-tight);
@@ -398,7 +400,7 @@ textarea {
 	}
 
 	.topbar {
-		@apply items-center gap-3 rounded-lg border px-3 py-3 sm:px-4;
+		@apply flex min-w-0 flex-col items-stretch gap-3 rounded-lg border px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between;
 		background: color-mix(in srgb, var(--surface) 90%, transparent);
 		border-color: var(--border);
 		box-shadow: var(--shadow-tight);
@@ -406,7 +408,7 @@ textarea {
 	}
 
 	.clean-nav {
-		@apply sticky top-3 z-30 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4;
+		@apply sticky top-3 z-30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border px-3 py-2.5 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:px-4;
 		background: color-mix(in srgb, var(--surface) 96%, transparent);
 		border-color: var(--border-strong);
 		box-shadow: var(--shadow-tight);
@@ -464,6 +466,7 @@ textarea {
 
 	.panel {
 		@apply rounded-lg border;
+		min-width: 0;
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		border-color: var(--border);
 		box-shadow: var(--shadow-tight);
@@ -471,6 +474,7 @@ textarea {
 
 	.panel-muted {
 		@apply rounded-lg border;
+		min-width: 0;
 		background: color-mix(in srgb, var(--surface-soft) 94%, transparent);
 		border-color: var(--border);
 	}
@@ -802,14 +806,18 @@ textarea {
 	}
 
 	.global-app-nav {
-		@apply sticky top-2 z-50 mx-auto mt-2 flex w-[calc(100%-1rem)] max-w-360 flex-col gap-2 rounded-lg border px-3 py-2 shadow-lg md:grid md:grid-cols-[minmax(0,1fr)_auto_auto] md:items-center;
+		@apply sticky top-2 z-50 mx-auto mt-2 grid w-[calc(100%-1rem)] max-w-360 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-3 py-2 shadow-lg;
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		border-color: var(--border);
 		backdrop-filter: blur(18px);
 	}
 
+	.global-menu-slot {
+		@apply col-start-3 row-start-1 justify-self-end;
+	}
+
 	.global-profile {
-		@apply flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-sm;
+		@apply col-start-1 row-start-1 flex min-w-0 max-w-[min(58vw,22rem)] items-center justify-start gap-2 justify-self-start rounded-md px-2 py-1.5 text-sm;
 	}
 
 	.global-avatar {
@@ -819,7 +827,7 @@ textarea {
 	}
 
 	.global-links {
-		@apply flex max-w-full gap-1 overflow-x-auto whitespace-nowrap;
+		@apply col-start-2 row-start-1 hidden max-w-full justify-center gap-1 overflow-hidden whitespace-nowrap lg:flex;
 		scrollbar-width: none;
 	}
 
@@ -837,8 +845,22 @@ textarea {
 		color: var(--text);
 	}
 
-	.global-actions {
-		@apply flex justify-end gap-2;
+	.global-menu-trigger {
+		@apply px-3;
+	}
+
+	.global-menu-popover {
+		@apply right-0 top-12 w-[min(24rem,calc(100vw-2rem))];
+	}
+
+	@media (max-width: 480px) {
+		.global-menu-trigger span {
+			display: none;
+		}
+
+		.global-profile {
+			max-width: min(64vw, 14rem);
+		}
 	}
 
 	.compact-helper-grid {

@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
-  import { onMount } from 'svelte';
-  import type { PageData } from './$types';
+import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
   type AuditLog = {
@@ -125,7 +124,6 @@
   let userLoading = $state(false);
   let grantEmail = $state('');
   let grantLevel = $state<'dashboard' | 'admin'>('dashboard');
-  let dark = $state(false);
   const isMainAdmin = $derived(data.role === 'main_admin');
   const adminView = $derived(
     page.url.pathname.endsWith('/users')
@@ -139,18 +137,6 @@
   const showUsersView = $derived(adminView === 'overview' || adminView === 'users');
   const showInboxesView = $derived(adminView === 'overview' || adminView === 'inboxes');
   const showSystemView = $derived(adminView === 'overview' || adminView === 'system');
-
-  function toggleTheme() {
-    dark = !dark;
-    document.documentElement.classList.toggle('dark', dark);
-    localStorage.setItem('theme', dark ? 'dark' : 'light');
-  }
-
-  onMount(() => {
-    const storedTheme = localStorage.getItem('theme');
-    dark = storedTheme ? storedTheme === 'dark' : window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.documentElement.classList.toggle('dark', dark);
-  });
 
   async function loadStats() {
     loading = true;
@@ -291,23 +277,6 @@
 </svelte:head>
 
 <main class="app-shell space-y-4">
-  <header class="topbar">
-    <div>
-      <a href="/dashboard" class="flex items-center gap-2 font-black"><span aria-hidden="true">⚡</span><span>OtpNest</span></a>
-      <p class="mt-1 text-sm muted">Admin: {data.email}</p>
-      <p class="mt-1 text-xs muted">Role: {data.role === 'main_admin' ? 'Main admin' : 'Admin'}</p>
-    </div>
-    <div class="flex gap-2">
-      <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
-      <a class="btn btn-secondary" href="/quick">Quick</a>
-      <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-      <a class="btn btn-secondary" href="/admin/users">Users</a>
-      <a class="btn btn-secondary" href="/admin/inboxes">Inboxes</a>
-      <a class="btn btn-secondary" href="/admin/system">System</a>
-      <button class="btn btn-primary" onclick={refreshAll} disabled={loading || mailLoading}>{loading || mailLoading ? 'Refreshing...' : 'Refresh'}</button>
-    </div>
-  </header>
-
   {#if errorMessage}
     <p class="rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{errorMessage}</p>
   {/if}
@@ -320,7 +289,7 @@
         <h1 id="access-title" class="mt-1 text-2xl font-black">Grant admin access</h1>
         <p class="mt-2 text-sm muted">Only main admins can grant access. Main-admin promotion stays database-only.</p>
       </div>
-      <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" onsubmit={(event) => { event.preventDefault(); grantAccess(); }}>
+      <form class="grid w-full min-w-0 gap-2 lg:w-auto lg:grid-cols-[minmax(0,16rem)_10rem_auto]" onsubmit={(event) => { event.preventDefault(); grantAccess(); }}>
         <input
           class="input"
           type="email"
@@ -350,7 +319,7 @@
 
     <div class="mt-4 overflow-hidden rounded-lg border" style="border-color: var(--border);">
       {#each profiles as profile}
-        <button class="grid w-full gap-2 border-b p-3 text-left text-sm last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]" style="border-color: var(--border);" onclick={() => openUser(profile.id)}>
+        <button class="grid w-full min-w-0 gap-2 border-b p-3 text-left text-sm last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto_auto_auto_auto_auto]" style="border-color: var(--border);" onclick={() => openUser(profile.id)}>
           <span class="min-w-0">
             <span class="block truncate font-semibold">{profile.email}</span>
             <span class="mt-1 block text-xs muted">
@@ -391,7 +360,7 @@
       {/if}
 
       {#if selectedUser}
-        <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
+        <div class="mt-4 grid min-w-0 gap-3 lg:grid-cols-[1fr_1.2fr]">
           <div class="panel-muted p-4">
             <h2 class="text-lg font-black">{selectedUser.profile.email}</h2>
             <p class="mt-2 text-sm muted">ID: {selectedUser.profile.id}</p>
@@ -401,7 +370,7 @@
               <span class:danger-text={selectedUser.profile.is_blocked}>Blocked: {selectedUser.profile.is_blocked ? 'yes' : 'no'}</span>
             </p>
             <p class="mt-2 text-sm muted">Created: {new Date(selectedUser.profile.created_at).toLocaleString()}</p>
-            <div class="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <div class="mt-4 grid gap-2 text-sm sm:grid-cols-2">
               <div class="rounded-md border p-3" style="border-color: var(--border);">
                 <p class="muted">Mails created</p>
                 <p class="text-2xl font-black">{selectedUser.stats.mailCreatedCount}</p>
@@ -440,7 +409,7 @@
           </div>
           <div class="panel-muted p-4">
             <h2 class="text-lg font-black">Detailed profile data</h2>
-            <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+            <dl class="mt-3 grid min-w-0 gap-3 text-sm sm:grid-cols-2">
               <div class="rounded-md border p-3" style="border-color: var(--border);">
                 <dt class="muted">Profile email</dt>
                 <dd class="mt-1 break-words font-semibold">{selectedUser.profile.email}</dd>
@@ -477,7 +446,7 @@
           </div>
         </div>
 
-        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+        <div class="mt-4 grid min-w-0 gap-4 lg:grid-cols-2">
           <section>
             <h2 class="text-lg font-black">Created mails</h2>
             <div class="mt-3 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--border);">
@@ -535,7 +504,7 @@
 
       <div class="mt-4 max-h-[28rem] overflow-auto rounded-lg border" style="border-color: var(--border);">
         {#each adminInboxes as inbox}
-          <article class="grid gap-3 border-b p-3 text-sm last:border-b-0 lg:grid-cols-[1.1fr_1fr_1.4fr_auto]" style="border-color: var(--border);">
+          <article class="grid min-w-0 gap-3 border-b p-3 text-sm last:border-b-0 lg:grid-cols-[1.1fr_1fr_1.4fr_auto]" style="border-color: var(--border);">
             <div>
               <p class="font-black">{inbox.emailAddress}</p>
               <p class="mt-1 muted">{new Date(inbox.createdAt).toLocaleString()}</p>
@@ -593,9 +562,9 @@
         <h2 id="audit-title" class="text-lg font-black">Recent audit logs</h2>
         <div class="mt-3 overflow-hidden rounded-lg border" style="border-color: var(--border);">
           {#each stats.recentLogs as log}
-            <article class="grid gap-2 border-b p-3 text-sm last:border-b-0 sm:grid-cols-[1fr_1fr_1.3fr]" style="border-color: var(--border);">
-              <span class="font-semibold">{log.action}</span>
-              <span class="truncate muted">{log.user_id || 'system'}</span>
+            <article class="grid min-w-0 gap-2 border-b p-3 text-sm last:border-b-0 sm:grid-cols-[1fr_1fr_1.3fr]" style="border-color: var(--border);">
+              <span class="break-words font-semibold">{log.action}</span>
+              <span class="break-all muted">{log.user_id || 'system'}</span>
               <time class="muted" datetime={log.created_at}>{new Date(log.created_at).toLocaleString()}</time>
             </article>
           {/each}
