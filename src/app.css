@@ -806,7 +806,7 @@ textarea {
 	}
 
 	.global-app-nav {
-		@apply sticky top-2 z-50 mx-auto mt-2 grid w-[calc(100%-1rem)] max-w-360 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-3 py-2 shadow-lg;
+		@apply sticky top-2 z-50 mx-auto mt-2 grid w-[calc(100%-1rem)] max-w-[1024px] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border px-3 py-2 shadow-lg;
 		background: color-mix(in srgb, var(--surface) 94%, transparent);
 		border-color: var(--border);
 		backdrop-filter: blur(18px);
@@ -858,6 +858,15 @@ textarea {
 
 	.global-menu-popover {
 		@apply fixed right-3 top-18 w-[min(24rem,calc(100vw-1.5rem))];
+	}
+
+	@media (max-width: 640px) {
+		#inflow-button-root,
+		#shadow-root-CEB-extension-all,
+		#shadow-root-CEB-extension-all #inflow-button-root {
+			inset: auto max(0.75rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) auto !important;
+			z-index: 30 !important;
+		}
 	}
 
 	.public-text-link {
