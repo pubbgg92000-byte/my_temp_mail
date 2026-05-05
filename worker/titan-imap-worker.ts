@@ -31,14 +31,7 @@ const OTP_WINDOW_MINUTES = 20;
 const MAX_BACKOFF_MS = 60_000;
 const STORED_EMAIL_RETENTION_MINUTES = 20;
 
-if (!PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-	throw new Error('PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
-}
-if (!TITAN_IMAP_USER || !TITAN_IMAP_PASSWORD || !TEMP_MAIL_DOMAIN) {
-	throw new Error('TITAN_IMAP_USER, TITAN_IMAP_PASSWORD, and TEMP_MAIL_DOMAIN are required.');
-}
-
-const DOMAIN = TEMP_MAIL_DOMAIN.trim().toLowerCase();
+const DOMAIN = (TEMP_MAIL_DOMAIN ?? 'titan.email').trim().toLowerCase();
 const EMAIL_REGEX = /[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}/gi;
 const LOCAL_PART_REGEX = /^[a-z0-9._-]{3,64}$/;
 const LOCAL_PART_STOPWORDS = new Set([
@@ -57,9 +50,22 @@ const LOCAL_PART_STOPWORDS = new Set([
 	'unknown'
 ]);
 
-const supabase = createClient(PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+const supabase = createClient(
+	PUBLIC_SUPABASE_URL || 'http://localhost:54321',
+	SUPABASE_SERVICE_ROLE_KEY || 'missing-service-role-key',
+	{
 	auth: { autoRefreshToken: false, persistSession: false }
-});
+	}
+);
+
+function assertWorkerConfig() {
+	if (!PUBLIC_SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+		throw new Error('PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
+	}
+	if (!TITAN_IMAP_USER || !TITAN_IMAP_PASSWORD || !TEMP_MAIL_DOMAIN) {
+		throw new Error('TITAN_IMAP_USER, TITAN_IMAP_PASSWORD, and TEMP_MAIL_DOMAIN are required.');
+	}
+}
 
 type InboxRow = {
 	id: string;
@@ -625,6 +631,8 @@ async function safeDisconnect(client: ImapFlow) {
 }
 
 export async function pollOnce() {
+	assertWorkerConfig();
+
 	const client = new ImapFlow({
 		host: TITAN_IMAP_HOST,
 		port: Number(TITAN_IMAP_PORT),
