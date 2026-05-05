@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta name="text-scale" content="scale" />
+		<meta
+			name="description"
+			content="OtpNest creates private temporary inboxes and displays verification codes securely."
+		/>
+		<meta name="theme-color" content="#222831" />
+		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+		<script>
+			const theme = localStorage.getItem('theme');
+			const palette = localStorage.getItem('palette') || 'teal';
+			const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+			document.documentElement.classList.toggle('dark', theme ? theme === 'dark' : prefersDark);
+			document.documentElement.dataset.palette = palette;
+		</script>
+		%sveltekit.head%
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">%sveltekit.body%</div>
+	</body>
+</html>
