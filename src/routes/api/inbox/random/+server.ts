@@ -1,9 +1,10 @@
 import { env } from '$env/dynamic/private';
 import { auditLog } from '$lib/server/audit';
 import { adminSupabase } from '$lib/server/admin';
+import { throwSchemaSetupErrorIfNeeded } from '$lib/server/db-errors';
 import { clientIp, rateLimit } from '$lib/server/rate-limit';
 import { requireUser } from '$lib/server/auth';
-import { RESERVED_LOCAL_PARTS } from '$lib/shared/inbox';
+import { canonicalLocalPart, RESERVED_LOCAL_PARTS } from '$lib/shared/inbox';
 import { customAlphabet } from 'nanoid';
 import { json, error } from '@sveltejs/kit';
 
@@ -21,17 +22,24 @@ export async function POST(event) {
 	if (!domain) throw error(500, 'TEMP_MAIL_DOMAIN is not configured.');
 
 	let localPart = randomLocalPart();
+	let canonical = canonicalLocalPart(localPart);
 	let emailAddress = `${localPart}@${domain}`;
 
 	for (let attempt = 0; attempt < 8; attempt++) {
 		const { data: blocked } = await adminSupabase
 			.from('blocked_local_parts').select('local_part').eq('local_part', localPart).maybeSingle();
 		if (!RESERVED_LOCAL_PARTS.includes(localPart) && !blocked) {
-			const { data: existing } = await adminSupabase
-				.from('temp_inboxes').select('id').eq('email_address', emailAddress).maybeSingle();
+			const { data: existing, error: existingError } = await adminSupabase
+				.from('temp_inboxes')
+				.select('id')
+				.or(`email_address.eq.${emailAddress},canonical_local_part.eq.${canonical}`)
+				.maybeSingle();
+			throwSchemaSetupErrorIfNeeded(existingError);
+			if (existingError) throw error(400, existingError.message);
 			if (!existing) break;
 		}
 		localPart = randomLocalPart();
+		canonical = canonicalLocalPart(localPart);
 		emailAddress = `${localPart}@${domain}`;
 	}
 
@@ -41,6 +49,7 @@ export async function POST(event) {
 			user_id: user.id,
 			email_address: emailAddress,
 			local_part: localPart,
+			canonical_local_part: canonical,
 			expires_at: null,
 			ip_address: ip,
 			user_agent: event.request.headers.get('user-agent')
@@ -48,6 +57,7 @@ export async function POST(event) {
 		.select('id,email_address')
 		.single();
 
+	throwSchemaSetupErrorIfNeeded(insertError);
 	if (insertError) throw error(400, insertError.message);
 
 	await auditLog({

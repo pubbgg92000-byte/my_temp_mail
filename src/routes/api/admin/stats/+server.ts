@@ -12,7 +12,7 @@ async function countRows(table: string, apply?: (query: any) => any) {
 }
 
 export async function GET(event) {
-  const user = await requireAdmin(event);
+  const { user } = await requireAdmin(event);
 
   try {
     const now = new Date().toISOString();

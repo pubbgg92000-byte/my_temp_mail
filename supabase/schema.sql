@@ -6,8 +6,12 @@ create table if not exists public.profiles (
   full_name text,
   avatar_url text,
   role text default 'user',
+  dashboard_access boolean default false,
   created_at timestamptz default now()
 );
+
+alter table public.profiles add column if not exists dashboard_access boolean default false;
+alter table public.profiles add column if not exists is_blocked boolean default false;
 
 alter table public.profiles enable row level security;
 
@@ -17,11 +21,25 @@ for select to authenticated using (auth.uid() = id);
 
 drop policy if exists profiles_update_own on public.profiles;
 create policy profiles_update_own on public.profiles
-for update to authenticated using (auth.uid() = id) with check (auth.uid() = id);
+for update to authenticated
+using (auth.uid() = id)
+with check (
+  auth.uid() = id
+  and coalesce(role, 'user') = 'user'
+  and coalesce(dashboard_access, false) = false
+);
 
 drop policy if exists profiles_insert_own on public.profiles;
 create policy profiles_insert_own on public.profiles
-for insert to authenticated with check (auth.uid() = id);
+for insert to authenticated
+with check (
+  auth.uid() = id
+  and coalesce(role, 'user') = 'user'
+  and coalesce(dashboard_access, false) = false
+);
+
+revoke update on public.profiles from authenticated;
+grant update (full_name, avatar_url) on public.profiles to authenticated;
 
 create or replace function public.handle_new_user()
 returns trigger language plpgsql security definer set search_path = public as $$
@@ -43,6 +61,7 @@ create table if not exists public.temp_inboxes (
   user_id uuid not null references auth.users(id) on delete cascade,
   email_address text unique not null,
   local_part text not null,
+  canonical_local_part text,
   created_at timestamptz default now(),
   expires_at timestamptz,
   status text default 'active',
@@ -55,6 +74,36 @@ create index if not exists temp_inboxes_email_address_idx on public.temp_inboxes
 create index if not exists temp_inboxes_active_idx on public.temp_inboxes(email_address) where status = 'active';
 
 alter table public.temp_inboxes alter column expires_at drop not null;
+alter table public.temp_inboxes add column if not exists canonical_local_part text;
+
+update public.temp_inboxes
+set canonical_local_part = lower(replace(local_part, '.', ''))
+where canonical_local_part is null;
+
+-- If either unique index fails, remove or rename old duplicate/dot-variant rows first:
+-- select canonical_local_part, count(*) from public.temp_inboxes group by 1 having count(*) > 1;
+-- select lower(email_address), count(*) from public.temp_inboxes group by 1 having count(*) > 1;
+create unique index if not exists temp_inboxes_email_address_lower_unique
+on public.temp_inboxes(lower(email_address));
+
+create unique index if not exists temp_inboxes_canonical_local_part_unique
+on public.temp_inboxes(canonical_local_part);
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'temp_inboxes_local_part_safe_check'
+  ) then
+    alter table public.temp_inboxes
+      add constraint temp_inboxes_local_part_safe_check
+      check (
+        local_part = lower(local_part)
+        and local_part = canonical_local_part
+        and local_part ~ '^[a-z0-9_+-]{3,32}$'
+        and local_part !~ '\.'
+      ) not valid;
+  end if;
+end $$;
 
 alter table public.temp_inboxes enable row level security;
 
@@ -160,7 +209,10 @@ insert into public.blocked_local_parts (local_part, reason) values
   ('root','reserved'),('abuse','reserved'),('postmaster','reserved'),
   ('security','reserved'),('contact','reserved'),('help','reserved'),
   ('sales','reserved'),('info','reserved'),('mail','reserved'),
-  ('noreply','reserved'),('no-reply','reserved')
+  ('noreply','reserved'),('no-reply','reserved'),('system','reserved'),
+  ('api','reserved'),('www','reserved'),('login','reserved'),
+  ('signup','reserved'),('dashboard','reserved'),('privacy','reserved'),
+  ('terms','reserved')
 on conflict (local_part) do nothing;
 
 create table if not exists public.audit_logs (
@@ -178,6 +230,21 @@ alter table public.audit_logs enable row level security;
 create or replace function public.promote_to_admin(target_email text)
 returns void language plpgsql security definer set search_path = public as $$
 begin
-  update public.profiles set role = 'admin' where lower(email) = lower(target_email);
+  update public.profiles
+  set role = 'admin',
+      dashboard_access = true
+  where lower(email) = lower(target_email);
+end;
+$$;
+
+-- Main admins are intentionally database-only. Promote one trusted owner manually:
+-- update public.profiles set role = 'main_admin', dashboard_access = true where lower(email) = lower('owner@example.com');
+create or replace function public.grant_dashboard_access(target_email text)
+returns void language plpgsql security definer set search_path = public as $$
+begin
+  update public.profiles
+  set role = 'dashboard_user',
+      dashboard_access = true
+  where lower(email) = lower(target_email);
 end;
 $$;

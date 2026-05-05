@@ -19,10 +19,90 @@
     recentLogs: AuditLog[];
   };
 
+  type ProfileAccess = {
+    id: string;
+    email: string;
+    role: string | null;
+    dashboard_access: boolean | null;
+    is_blocked: boolean | null;
+    created_at: string;
+  };
+
+  type AdminInbox = {
+    id: string;
+    userId: string;
+    ownerEmail: string | null;
+    ownerRole: string | null;
+    emailAddress: string;
+    status: string | null;
+    createdAt: string;
+    latestMessage: {
+      id: string;
+      from: string | null;
+      subject: string | null;
+      preview: string | null;
+      code: string | null;
+      receivedAt: string;
+    } | null;
+  };
+
+  type UserDetail = {
+    profile: ProfileAccess & {
+      full_name: string | null;
+      avatar_url: string | null;
+    };
+    authUser: {
+      id: string;
+      email: string | null;
+      createdAt: string;
+      updatedAt: string | null;
+      lastSignInAt: string | null;
+      emailConfirmedAt: string | null;
+      bannedUntil: string | null;
+    } | null;
+    inboxes: Array<{
+      id: string;
+      email_address: string;
+      local_part: string;
+      canonical_local_part: string | null;
+      status: string | null;
+      created_at: string;
+      expires_at: string | null;
+      ip_address: string | null;
+      user_agent: string | null;
+    }>;
+    emails: Array<{
+      id: string;
+      inbox_id: string;
+      recipient_email: string;
+      sender_email: string | null;
+      subject: string | null;
+      body_preview: string | null;
+      full_body: string | null;
+      detected_code: string | null;
+      message_id: string | null;
+      received_at: string | null;
+      created_at: string;
+    }>;
+  };
+
   let stats = $state<AdminStats | null>(null);
+  let profiles = $state<ProfileAccess[]>([]);
+  let adminInboxes = $state<AdminInbox[]>([]);
+  let selectedUser = $state<UserDetail | null>(null);
   let errorMessage = $state('');
+  let accessMessage = $state('');
+  let accessError = $state('');
+  let mailError = $state('');
+  let userError = $state('');
   let loading = $state(false);
+  let accessLoading = $state(false);
+  let mailLoading = $state(false);
+  let userLoading = $state(false);
+  let grantEmail = $state('');
+  let grantLevel = $state<'dashboard' | 'admin'>('dashboard');
   let dark = $state(false);
+  const isMainAdmin = $derived(data.role === 'main_admin');
 
   function toggleTheme() {
     dark = !dark;
@@ -50,8 +130,122 @@
     stats = (await response.json()) as AdminStats;
   }
 
+  async function loadProfiles() {
+    if (!isMainAdmin) return;
+    const response = await fetch('/api/admin/access');
+
+    if (!response.ok) {
+      accessError = await response.text();
+      return;
+    }
+
+    const payload = (await response.json()) as { profiles: ProfileAccess[] };
+    profiles = payload.profiles;
+  }
+
+  async function loadAdminInboxes() {
+    if (!isMainAdmin) return;
+    mailLoading = true;
+    mailError = '';
+    const response = await fetch('/api/admin/inboxes');
+    mailLoading = false;
+
+    if (!response.ok) {
+      mailError = await response.text();
+      return;
+    }
+
+    const payload = (await response.json()) as { inboxes: AdminInbox[] };
+    adminInboxes = payload.inboxes;
+  }
+
+  async function grantAccess() {
+    accessLoading = true;
+    accessMessage = '';
+    accessError = '';
+
+    const response = await fetch('/api/admin/access', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: grantEmail, access: grantLevel })
+    });
+
+    accessLoading = false;
+
+    if (!response.ok) {
+      accessError = await response.text();
+      return;
+    }
+
+    const payload = (await response.json()) as { profile: ProfileAccess };
+    accessMessage =
+      grantLevel === 'admin'
+        ? `${payload.profile.email} can now use /admin and /dashboard.`
+        : `${payload.profile.email} can now use /dashboard.`;
+    grantEmail = '';
+    await loadProfiles();
+  }
+
+  async function openUser(userId: string) {
+    userLoading = true;
+    userError = '';
+    const response = await fetch(`/api/admin/users/${userId}`);
+    userLoading = false;
+
+    if (!response.ok) {
+      userError = await response.text();
+      return;
+    }
+
+    selectedUser = (await response.json()) as UserDetail;
+  }
+
+  async function runUserAction(action: string) {
+    if (!selectedUser) return;
+    const labels: Record<string, string> = {
+      grant_admin: 'grant admin access to',
+      grant_dashboard: 'grant dashboard access to',
+      remove_access: 'remove access from',
+      block: 'block',
+      unblock: 'unblock',
+      delete: 'delete'
+    };
+    if (!confirm(`Are you sure you want to ${labels[action] ?? action} ${selectedUser.profile.email}?`)) {
+      return;
+    }
+
+    userLoading = true;
+    userError = '';
+    const response = await fetch(`/api/admin/users/${selectedUser.profile.id}/action`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    userLoading = false;
+
+    if (!response.ok) {
+      userError = await response.text();
+      return;
+    }
+
+    if (action === 'delete') {
+      selectedUser = null;
+    } else {
+      await openUser(selectedUser.profile.id);
+    }
+    await Promise.all([loadProfiles(), loadAdminInboxes(), loadStats()]);
+  }
+
+  async function refreshAll() {
+    await Promise.all([loadStats(), loadProfiles(), loadAdminInboxes()]);
+  }
+
   $effect(() => {
     loadStats();
+    if (isMainAdmin) {
+      loadProfiles();
+      loadAdminInboxes();
+    }
   });
 </script>
 
@@ -65,16 +259,209 @@
     <div>
       <a href="/dashboard" class="flex items-center gap-2 font-black"><span aria-hidden="true">⚡</span><span>OtpNest</span></a>
       <p class="mt-1 text-sm muted">Admin: {data.email}</p>
+      <p class="mt-1 text-xs muted">Role: {data.role === 'main_admin' ? 'Main admin' : 'Admin'}</p>
     </div>
     <div class="flex gap-2">
       <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
+      <a class="btn btn-secondary" href="/quick">Quick</a>
       <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
-      <button class="btn btn-primary" onclick={loadStats} disabled={loading}>{loading ? 'Refreshing...' : 'Refresh'}</button>
+      <a class="btn btn-secondary" href="/">Home</a>
+      <button class="btn btn-primary" onclick={refreshAll} disabled={loading || mailLoading}>{loading || mailLoading ? 'Refreshing...' : 'Refresh'}</button>
     </div>
   </header>
 
   {#if errorMessage}
     <p class="rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{errorMessage}</p>
+  {/if}
+
+  {#if isMainAdmin}
+  <section class="panel p-4 sm:p-5" aria-labelledby="access-title">
+    <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <p class="kicker">Access</p>
+        <h1 id="access-title" class="mt-1 text-2xl font-black">Grant admin access</h1>
+        <p class="mt-2 text-sm muted">Only main admins can grant access. Main-admin promotion stays database-only.</p>
+      </div>
+      <form class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" onsubmit={(event) => { event.preventDefault(); grantAccess(); }}>
+        <input
+          class="input"
+          type="email"
+          bind:value={grantEmail}
+          placeholder="user@example.com"
+          aria-label="User email"
+          autocomplete="off"
+          required
+        />
+        <select class="input" bind:value={grantLevel} aria-label="Access level">
+          <option value="dashboard">Dashboard</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button class="btn btn-primary" type="submit" disabled={accessLoading}>
+          {accessLoading ? 'Granting...' : 'Grant'}
+        </button>
+      </form>
+    </div>
+
+    {#if accessMessage}
+      <p class="mt-3 rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--success) 28%, transparent); background: color-mix(in srgb, var(--success) 12%, transparent); color: var(--success);">{accessMessage}</p>
+    {/if}
+
+    {#if accessError}
+      <p class="mt-3 rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{accessError}</p>
+    {/if}
+
+    <div class="mt-4 overflow-hidden rounded-lg border" style="border-color: var(--border);">
+      {#each profiles as profile}
+        <button class="grid w-full gap-2 border-b p-3 text-left text-sm last:border-b-0 sm:grid-cols-[1fr_auto_auto_auto]" style="border-color: var(--border);" onclick={() => openUser(profile.id)}>
+          <span class="truncate font-semibold">{profile.email}</span>
+          <span class="badge">{profile.dashboard_access ? 'Dashboard' : 'Quick only'}</span>
+          <span class="badge">{profile.is_blocked ? 'Blocked' : 'Active'}</span>
+          <span class="badge">{profile.role ?? 'user'}</span>
+        </button>
+      {:else}
+        <p class="p-3 text-sm muted">No users found.</p>
+      {/each}
+    </div>
+  </section>
+  {:else}
+    <section class="panel p-4 sm:p-5">
+      <p class="kicker">Access</p>
+      <h1 class="mt-1 text-2xl font-black">Admin access</h1>
+      <p class="mt-2 text-sm muted">You can use the admin dashboard. Only the database-defined main admin can grant admins or view all verification codes.</p>
+    </section>
+  {/if}
+
+  {#if isMainAdmin}
+    <section class="panel p-4 sm:p-5" aria-labelledby="user-title">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="kicker">Users</p>
+          <h1 id="user-title" class="mt-1 text-2xl font-black">Selected user data</h1>
+        </div>
+        {#if userLoading}<span class="badge">Loading</span>{/if}
+      </div>
+
+      {#if userError}
+        <p class="mt-3 rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{userError}</p>
+      {/if}
+
+      {#if selectedUser}
+        <div class="mt-4 grid gap-3 lg:grid-cols-[1fr_1.2fr]">
+          <div class="panel-muted p-4">
+            <h2 class="text-lg font-black">{selectedUser.profile.email}</h2>
+            <p class="mt-2 text-sm muted">ID: {selectedUser.profile.id}</p>
+            <p class="mt-2 text-sm muted">Role: {selectedUser.profile.role ?? 'user'}</p>
+            <p class="mt-2 text-sm muted">Dashboard: {selectedUser.profile.dashboard_access ? 'yes' : 'no'}</p>
+            <p class="mt-2 text-sm muted">Blocked: {selectedUser.profile.is_blocked ? 'yes' : 'no'}</p>
+            <p class="mt-2 text-sm muted">Created: {new Date(selectedUser.profile.created_at).toLocaleString()}</p>
+            {#if selectedUser.authUser}
+              <p class="mt-2 text-sm muted">Last sign-in: {selectedUser.authUser.lastSignInAt ? new Date(selectedUser.authUser.lastSignInAt).toLocaleString() : 'never'}</p>
+              <p class="mt-2 text-sm muted">Email confirmed: {selectedUser.authUser.emailConfirmedAt ? 'yes' : 'no'}</p>
+            {/if}
+            <div class="mt-4 flex flex-wrap gap-2">
+              <button class="btn btn-secondary" onclick={() => runUserAction('grant_dashboard')}>Dashboard</button>
+              <button class="btn btn-secondary" onclick={() => runUserAction('grant_admin')}>Admin</button>
+              <button class="btn btn-secondary" onclick={() => runUserAction('remove_access')}>Remove access</button>
+              <button class="btn btn-secondary" onclick={() => runUserAction(selectedUser?.profile.is_blocked ? 'unblock' : 'block')}>
+                {selectedUser.profile.is_blocked ? 'Unblock' : 'Block'}
+              </button>
+              <button class="btn btn-secondary" style="color: var(--danger);" onclick={() => runUserAction('delete')}>Delete</button>
+            </div>
+          </div>
+          <div class="panel-muted p-4">
+            <h2 class="text-lg font-black">Raw profile data</h2>
+            <pre class="mt-3 max-h-80 overflow-auto rounded-md border p-3 text-xs" style="border-color: var(--border);">{JSON.stringify(selectedUser, null, 2)}</pre>
+          </div>
+        </div>
+
+        <div class="mt-4 grid gap-4 lg:grid-cols-2">
+          <section>
+            <h2 class="text-lg font-black">Created mails</h2>
+            <div class="mt-3 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--border);">
+              {#each selectedUser.inboxes as inbox}
+                <article class="border-b p-3 text-sm last:border-b-0" style="border-color: var(--border);">
+                  <p class="font-black">{inbox.email_address}</p>
+                  <p class="mt-1 muted">{inbox.status ?? 'unknown'} · {new Date(inbox.created_at).toLocaleString()}</p>
+                  <p class="mt-1 muted">IP: {inbox.ip_address ?? 'unknown'}</p>
+                </article>
+              {:else}
+                <p class="p-3 text-sm muted">No mails created.</p>
+              {/each}
+            </div>
+          </section>
+          <section>
+            <h2 class="text-lg font-black">Received mail and codes</h2>
+            <div class="mt-3 max-h-80 overflow-auto rounded-lg border" style="border-color: var(--border);">
+              {#each selectedUser.emails as mail}
+                <article class="border-b p-3 text-sm last:border-b-0" style="border-color: var(--border);">
+                  <p class="font-black">{mail.detected_code ?? 'No code'}</p>
+                  <p class="mt-1 font-semibold">{mail.subject ?? 'No subject'}</p>
+                  <p class="mt-1 muted">{mail.sender_email ?? 'unknown'} → {mail.recipient_email}</p>
+                  <p class="mt-1 muted">{mail.received_at ? new Date(mail.received_at).toLocaleString() : new Date(mail.created_at).toLocaleString()}</p>
+                  <details class="mt-2">
+                    <summary class="font-semibold">Stored body</summary>
+                    <pre class="mt-2 whitespace-pre-wrap rounded-md border p-3 text-xs" style="border-color: var(--border);">{mail.full_body ?? mail.body_preview ?? ''}</pre>
+                  </details>
+                </article>
+              {:else}
+                <p class="p-3 text-sm muted">No received mails.</p>
+              {/each}
+            </div>
+          </section>
+        </div>
+      {:else}
+        <p class="mt-3 rounded-lg border p-3 text-sm muted" style="border-color: var(--border);">Click a user in the access list to view complete profile, inbox, and mail data.</p>
+      {/if}
+    </section>
+
+    <section class="panel p-4 sm:p-5" aria-labelledby="mail-title">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <p class="kicker">Main admin</p>
+          <h1 id="mail-title" class="mt-1 text-2xl font-black">All inboxes and latest codes</h1>
+          <p class="mt-2 text-sm muted">Code access is limited to main admin. Raw bodies, headers, and attachments are not exposed here.</p>
+        </div>
+        {#if mailLoading}<span class="badge">Loading</span>{/if}
+      </div>
+
+      {#if mailError}
+        <p class="mt-3 rounded-md border px-4 py-3 text-sm" style="border-color: color-mix(in srgb, var(--danger) 28%, transparent); background: var(--danger-soft); color: var(--danger);">{mailError}</p>
+      {/if}
+
+      <div class="mt-4 max-h-[28rem] overflow-auto rounded-lg border" style="border-color: var(--border);">
+        {#each adminInboxes as inbox}
+          <article class="grid gap-3 border-b p-3 text-sm last:border-b-0 lg:grid-cols-[1.1fr_1fr_1.4fr_auto]" style="border-color: var(--border);">
+            <div>
+              <p class="font-black">{inbox.emailAddress}</p>
+              <p class="mt-1 muted">{new Date(inbox.createdAt).toLocaleString()}</p>
+            </div>
+            <div>
+              <p class="font-semibold">{inbox.ownerEmail ?? inbox.userId}</p>
+              <p class="mt-1 muted">{inbox.ownerRole ?? 'user'} · {inbox.status ?? 'unknown'}</p>
+            </div>
+            <div>
+              {#if inbox.latestMessage}
+                <p class="truncate font-semibold">{inbox.latestMessage.subject ?? 'No subject'}</p>
+                <p class="mt-1 truncate muted">{inbox.latestMessage.from ?? 'Unknown sender'}</p>
+                <p class="mt-1 truncate muted">{inbox.latestMessage.preview ?? 'No preview'}</p>
+              {:else}
+                <p class="muted">No received mail yet.</p>
+              {/if}
+            </div>
+            <div class="text-left lg:text-right">
+              {#if inbox.latestMessage?.code}
+                <p class="text-3xl font-black tracking-wide">{inbox.latestMessage.code}</p>
+                <p class="mt-1 muted">{new Date(inbox.latestMessage.receivedAt).toLocaleString()}</p>
+              {:else}
+                <span class="badge">No code</span>
+              {/if}
+            </div>
+          </article>
+        {:else}
+          <p class="p-3 text-sm muted">No inboxes found.</p>
+        {/each}
+      </div>
+    </section>
   {/if}
 
   <section class="panel p-4 sm:p-5" aria-labelledby="system-title">

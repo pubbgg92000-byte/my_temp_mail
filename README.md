@@ -1,95 +1,105 @@
 # Titan Temp Mail (avmail.online)
 
-A SvelteKit + Supabase + Titan Mail catch-all temp-mail dashboard.
-Each user signs up, generates short-lived addresses on your domain, and
-receives only the verification codes for the addresses they created — RLS
-keeps every user's mail isolated.
+A SvelteKit + Supabase + Titan Mail catch-all receiver for private OTP testing. The normal user route is `/quick`; the larger dashboard remains available only to explicitly allowed database users.
 
-## Quick start (macOS / Linux)
+Use this only for accounts, domains, and verification flows you own or are authorized to test. Do not use it for spam, fraud, phishing, bulk account creation, or bypassing platform rules.
+
+## Quick start
 
 ```bash
-# 1. Install deps (uses npm; switch to yarn/pnpm if you prefer)
 npm install
-
-# 2. Copy env template and fill in real values
 cp .env.example .env
-# Edit .env with: Supabase URL+keys, Titan IMAP password, your domain.
+# Fill in Supabase, Titan IMAP, and TEMP_MAIL_DOMAIN values.
 
-# 3. Load the schema once in Supabase → SQL Editor
-#    (paste the entire contents of supabase/schema.sql and click Run)
-
-# 4. Start the web app
+# Run supabase/schema.sql once in Supabase SQL Editor.
 npm run dev
-# → http://localhost:5173
 
-# 5. In a second terminal, start the IMAP worker
+# In a separate process:
 npm run worker
-# → [worker] Titan IMAP worker started for domain avmail.online
 ```
 
-## Promote yourself to admin
+Normal users should open `/quick`. `/dashboard` requires `profiles.dashboard_access = true`, `profiles.role = 'dashboard_user'`, `profiles.role = 'admin'`, or `profiles.role = 'main_admin'`. `/admin` requires `profiles.role = 'admin'` or `profiles.role = 'main_admin'`.
 
-After signing up your first user, run in Supabase SQL Editor:
+## Database setup
+
+Run `supabase/schema.sql` in Supabase SQL Editor. Before applying the unique canonical local-part index to an existing database, check for old duplicate or dot-variant rows:
+
+```sql
+select canonical_local_part, count(*)
+from public.temp_inboxes
+group by 1
+having count(*) > 1;
+
+select lower(email_address), count(*)
+from public.temp_inboxes
+group by 1
+having count(*) > 1;
+```
+
+If the app shows `Could not find the 'canonical_local_part' column ... in the schema cache`, the web code is newer than the database schema. Run `supabase/schema.sql`, then refresh the Supabase/PostgREST schema cache from the Supabase dashboard or restart your local Supabase stack before trying random/custom mail creation again.
+
+Grant dashboard access only when needed:
+
+```sql
+update public.profiles
+set dashboard_access = true
+where lower(email) = lower('you@example.com');
+```
+
+Promote admins only for trusted operators:
 
 ```sql
 select public.promote_to_admin('you@example.com');
 ```
 
-Then visit `/admin` to see system stats.
+Main admin is database-only. Use it only for the trusted owner account:
 
-## End-to-end smoke test
-
-1. Sign up at `/signup`.
-2. On the dashboard click **Generate Random Email**.
-3. Send a test email from any other account to that address with body
-   `Your verification code is 482913`.
-4. Within ~7s the worker logs `[worker] saved   uid=…` and the code shows
-   up in the dashboard's **Verification Code** card.
+```sql
+update public.profiles
+set role = 'main_admin',
+    dashboard_access = true
+where lower(email) = lower('owner@example.com');
+```
 
 ## Project layout
 
-```
-src/
-  hooks.server.ts            Supabase SSR cookie wiring + safeGetSession
-  app.css                    Tailwind v4 theme (mint / ink / gold)
-  lib/
-    server/                  Server-only helpers (admin client, audit, auth, rate-limit)
-    shared/                  Reusable: inbox validation, otp extractor, recipient matcher
-    supabase/                Browser supabase client
-  routes/
-    +page.svelte             Landing
-    signup/, login/          Email + password auth
-    dashboard/               User's inboxes + verification code box
-    admin/                   Admin stats (role = admin only)
-    api/
-      inbox/random           POST  → create random inbox (rate-limited 5/h)
-      inbox/custom           POST  → create custom local-part inbox
-      inbox/[inboxId]        DELETE
-      inbox/[inboxId]/messages  GET (refresh-limited 1/5s)
-      inboxes                GET   → list current user's inboxes
-      admin/stats            GET   → admin only
-worker/
-  titan-imap-worker.ts       IMAP poller → recipient match → OTP extract → DB insert
-supabase/
-  schema.sql                 Idempotent schema with RLS + profile trigger + admin helper
+```txt
+src/routes/quick                 Minimal OTP-only user app
+src/routes/dashboard             Hidden dashboard, permission-gated
+src/routes/admin                 Admin stats, admin-only
+src/routes/api/inbox/*           Authenticated inbox APIs
+src/lib/server                   Server-only auth/admin/audit/rate-limit helpers
+src/lib/shared                   Inbox validation, OTP parsing, recipient matching
+worker/titan-imap-worker.ts      IMAP poller and OTP saver
+supabase/schema.sql              RLS, uniqueness, profile permissions
 ```
 
-## Production deployment
+## Security review
 
-- Web: `npm run build && node build` (adapter-node already configured).
-- Worker: a **separate** process running `npm run worker`. Don't share a
-  process with the web server — restarts will drop the IMAP connection.
-- Set every `.env` value as a secret in your hosting platform.
-- Replace the in-memory rate limiter (`src/lib/server/rate-limit.ts`) with a
-  Redis-backed version before scaling beyond one instance.
+Safe:
+- Supabase service role and Titan IMAP password are server/worker-only and not exposed through frontend env.
+- Protected server routes and APIs use `supabase.auth.getUser()` through server helpers.
+- Inbox and message APIs scope reads/deletes by verified `user.id`.
+- RLS is enabled for `profiles`, `temp_inboxes`, and `received_emails`.
+- The app receives mail only; no sending, attachment download, public inbox browsing, or catch-all mailbox exposure is implemented.
 
-## Security
+Fixed:
+- `/quick` is now the normal mini app for creating mail, generating random mail, fetching OTPs, copying only parsed codes, and managing recent mails.
+- `/dashboard` is hidden from normal navigation and blocked unless the profile is explicitly allowed.
+- `/admin` supports regular admins, while `main_admin` alone can grant access and view all inboxes/latest verification codes.
+- Dot local-parts are rejected because some providers ignore dots.
+- `canonical_local_part` and lowercased email unique indexes prevent cross-user reuse and dot-variant abuse.
+- Custom creation is limited to 5 per user per hour; random creation remains 10 per user per hour; fetch/delete endpoints are rate-limited.
+- Message responses do not return raw HTML, raw headers, attachments, or `full_body`; server-side fallback parsing returns only the OTP code.
 
-- All user data is protected by Supabase RLS — `auth.uid()` matched against
-  `temp_inboxes.user_id` and `received_emails.user_id`.
-- `SUPABASE_SERVICE_ROLE_KEY` and `TITAN_IMAP_PASSWORD` are server-only.
-  They are never imported into any file under `src/lib/supabase/` or any
-  `+page.svelte`. If you add new routes, keep service-role usage to
-  `src/lib/server/admin.ts` and the worker.
-- No outgoing email. No attachment download. By design, MVP scope.
-# my_temp_mail
+Still requires manual setup:
+- Store `.env` values only as hosting secrets; never commit real `.env`.
+- Run the Supabase schema and resolve any old duplicate aliases before hosting.
+- Configure Titan Mail catch-all/IMAP credentials and `TEMP_MAIL_DOMAIN`.
+- Review Supabase Auth settings, production HTTPS, and deployment logs before launch.
+- Replace the in-memory rate limiter with Redis or another shared store before running multiple web instances.
+
+Risks:
+- The IMAP worker uses a service role by design; keep it isolated from client bundles and logs.
+- `email_processing_logs` can contain debug previews for unmatched mail; keep RLS enabled and restrict database/operator access.
+- Existing databases with old dot-containing aliases need manual cleanup before canonical uniqueness can be guaranteed.

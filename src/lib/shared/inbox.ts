@@ -14,17 +14,35 @@ export const RESERVED_LOCAL_PARTS = [
   'info',
   'mail',
   'noreply',
-  'no-reply'
+  'no-reply',
+  'system',
+  'api',
+  'www',
+  'login',
+  'signup',
+  'dashboard',
+  'privacy',
+  'terms'
 ];
 
-export const customLocalPartSchema = z
-  .string()
-  .trim()
-  .toLowerCase()
-  .min(1, 'Enter a local part.')
+export function localPartFromInput(value: string) {
+  return value.trim().split('@')[0].toLowerCase();
+}
+
+export function canonicalLocalPart(value: string) {
+  return localPartFromInput(value).replace(/\./g, '');
+}
+
+export const customLocalPartSchema = z.preprocess(
+  (value) => (typeof value === 'string' ? localPartFromInput(value) : value),
+  z.string()
+  .refine((value) => value.length > 0, 'Enter a local part.')
+  .refine((value) => !value.includes('.'), 'Dots are not allowed because some services ignore dots in email addresses.')
+  .refine((value) => value.length >= 3, 'Use at least 3 characters.')
   .max(32, 'Use 32 characters or fewer.')
-  .regex(/^[a-z0-9._+-]+$/, 'Use lowercase letters, numbers, dots, underscores, plus signs, or hyphens.')
-  .refine((value) => !RESERVED_LOCAL_PARTS.includes(value), 'That name is reserved.');
+  .regex(/^[a-z0-9_+-]+$/, 'Use lowercase letters, numbers, underscores, plus signs, or hyphens.')
+  .refine((value) => !RESERVED_LOCAL_PARTS.includes(value), 'That name is reserved.')
+);
 
 export function normalizeEmail(value: string) {
   return value.trim().toLowerCase();

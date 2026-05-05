@@ -33,7 +33,15 @@
       return;
     }
 
-    await goto($page.url.searchParams.get('redirectTo') || '/dashboard');
+    const redirectTo = $page.url.searchParams.get('redirectTo');
+    if (redirectTo) {
+      await goto(redirectTo);
+      return;
+    }
+
+    const landing = await fetch('/api/auth/landing');
+    const payload = landing.ok ? await landing.json() : { path: '/quick' };
+    await goto(payload.path || '/quick');
   }
 </script>
 
@@ -42,7 +50,7 @@
   <meta name="description" content="Log in to OtpNest to manage private temporary inboxes and verification codes." />
 </svelte:head>
 
-<main class="app-shell grid min-h-screen items-center lg:grid-cols-[1fr_440px]">
+<main class="app-shell grid min-h-screen items-center md:max-w-96 lg:grid-cols-[1fr_440px]">
   <section class="hidden max-w-2xl lg:block">
     <a href="/" class="flex items-center gap-3 font-black">
       <span aria-hidden="true">⚡</span>

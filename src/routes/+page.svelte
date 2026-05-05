@@ -32,7 +32,7 @@
     <nav class="flex items-center gap-2" aria-label="Public navigation">
       <button class="btn btn-secondary" onclick={toggleTheme}>{dark ? 'Day' : 'Night'}</button>
       {#if data.user}
-        <a class="btn btn-primary" href="/dashboard">Dashboard</a>
+        <a class="btn btn-primary" href="/quick">Quick mail</a>
       {:else}
         <a class="btn btn-secondary" href="/login">Log in</a>
         <a class="btn btn-primary" href="/signup">Sign up</a>
@@ -50,8 +50,8 @@
         Generate private aliases, receive verification mail, and keep every code scoped to the user who created the inbox.
       </p>
       <div class="mt-7 flex flex-wrap gap-3">
-        <a class="btn btn-primary" href={data.user ? '/dashboard' : '/signup'}>Create an inbox</a>
-        <a class="btn btn-secondary" href="/login">Open dashboard</a>
+        <a class="btn btn-primary" href={data.user ? '/quick' : '/signup'}>Create an inbox</a>
+        <a class="btn btn-secondary" href="/login">Log in</a>
       </div>
     </div>
   </section>

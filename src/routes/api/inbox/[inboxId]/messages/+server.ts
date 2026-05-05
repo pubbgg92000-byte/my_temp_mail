@@ -1,5 +1,6 @@
 import { rateLimit } from '$lib/server/rate-limit';
 import { requireUser } from '$lib/server/auth';
+import { extractOtp } from '$lib/shared/otp';
 import { json, error } from '@sveltejs/kit';
 
 const OTP_WINDOW_MINUTES = 10;
@@ -43,7 +44,7 @@ export async function GET(event) {
 
 	const { data: messages, error: messageError } = await event.locals.supabase
 		.from('received_emails')
-		.select('id,sender_email,subject,body_preview,detected_code,received_at')
+		.select('id,sender_email,subject,body_preview,full_body,detected_code,received_at')
 		.eq('inbox_id', inboxId)
 		.eq('user_id', user.id)
 		.order('received_at', { ascending: false })
@@ -57,7 +58,9 @@ export async function GET(event) {
 		id: message.id,
 		from: message.sender_email,
 		subject: message.subject,
-		code: message.detected_code,
+		code:
+			message.detected_code ??
+			extractOtp({ subject: message.subject, text: message.full_body ?? message.body_preview }),
 		bodyPreview: message.body_preview,
 		receivedAt: message.received_at
 	}));

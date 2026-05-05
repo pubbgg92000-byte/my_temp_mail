@@ -47,7 +47,9 @@
     }
 
     successMessage = 'Account created. Check your email if confirmation is enabled.';
-    await goto('/dashboard');
+    const landing = await fetch('/api/auth/landing');
+    const payload = landing.ok ? await landing.json() : { path: '/quick' };
+    await goto(payload.path || '/quick');
   }
 </script>
 

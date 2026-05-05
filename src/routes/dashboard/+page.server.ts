@@ -1,11 +1,12 @@
-import { requireUser } from '$lib/server/auth';
+import { requireDashboardAccess } from '$lib/server/auth';
+import { wrap } from 'node:module';
 
 export const load = async (event) => {
-	const { user } = await requireUser(event);
+	const { user } = await requireDashboardAccess(event);
 
 	const { data: profile } = await event.locals.supabase
 		.from('profiles')
-		.select('full_name, emoji, role')
+		.select('full_name, emoji, role, dashboard_access')
 		.eq('id', user.id)
 		.single();
 

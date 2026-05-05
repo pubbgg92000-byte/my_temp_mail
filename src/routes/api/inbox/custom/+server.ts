@@ -1,15 +1,16 @@
 import { env } from '$env/dynamic/private';
 import { auditLog } from '$lib/server/audit';
 import { adminSupabase } from '$lib/server/admin';
+import { throwSchemaSetupErrorIfNeeded } from '$lib/server/db-errors';
 import { clientIp, rateLimit } from '$lib/server/rate-limit';
 import { requireUser } from '$lib/server/auth';
-import { customLocalPartSchema } from '$lib/shared/inbox';
+import { canonicalLocalPart, customLocalPartSchema } from '$lib/shared/inbox';
 import { json, error } from '@sveltejs/kit';
 
 export async function POST(event) {
 	const { user } = await requireUser(event);
 	const ip = clientIp(event.request);
-	const limited = rateLimit(`custom:${user.id}`, 10, 60 * 60 * 1000);
+	const limited = rateLimit(`custom:${user.id}`, 5, 60 * 60 * 1000);
 	if (!limited.ok) throw error(429, `Too many requests. Try again in ${limited.retryAfter}s.`);
 
 	const body = await event.request.json().catch(() => ({}));
@@ -20,6 +21,7 @@ export async function POST(event) {
 	if (!domain) throw error(500, 'TEMP_MAIL_DOMAIN is not configured.');
 
 	const localPart = parsed.data;
+	const canonical = canonicalLocalPart(localPart);
 	const emailAddress = `${localPart}@${domain}`;
 
 	const { data: blocked } = await adminSupabase
@@ -27,13 +29,23 @@ export async function POST(event) {
 	if (blocked) throw error(400, 'That name is reserved.');
 
 	// If this user already has this address, just return it (reuse flow)
-	const { data: mine } = await event.locals.supabase
-		.from('temp_inboxes').select('id,email_address').eq('email_address', emailAddress)
-		.eq('user_id', user.id).maybeSingle();
+	const { data: mine, error: mineError } = await event.locals.supabase
+		.from('temp_inboxes')
+		.select('id,email_address')
+		.eq('canonical_local_part', canonical)
+		.eq('user_id', user.id)
+		.maybeSingle();
+	throwSchemaSetupErrorIfNeeded(mineError);
+	if (mineError) throw error(400, mineError.message);
 	if (mine) return json({ inboxId: mine.id, email: mine.email_address, expiresAt: null });
 
-	const { data: taken } = await adminSupabase
-		.from('temp_inboxes').select('id').eq('email_address', emailAddress).maybeSingle();
+	const { data: taken, error: takenError } = await adminSupabase
+		.from('temp_inboxes')
+		.select('id')
+		.or(`email_address.eq.${emailAddress},canonical_local_part.eq.${canonical}`)
+		.maybeSingle();
+	throwSchemaSetupErrorIfNeeded(takenError);
+	if (takenError) throw error(400, takenError.message);
 	if (taken) throw error(409, 'That email address is taken by another user.');
 
 	const { data, error: insertError } = await event.locals.supabase
@@ -42,6 +54,7 @@ export async function POST(event) {
 			user_id: user.id,
 			email_address: emailAddress,
 			local_part: localPart,
+			canonical_local_part: canonical,
 			expires_at: null,
 			ip_address: ip,
 			user_agent: event.request.headers.get('user-agent')
@@ -49,6 +62,7 @@ export async function POST(event) {
 		.select('id,email_address')
 		.single();
 
+	throwSchemaSetupErrorIfNeeded(insertError);
 	if (insertError) throw error(400, insertError.message);
 
 	await auditLog({

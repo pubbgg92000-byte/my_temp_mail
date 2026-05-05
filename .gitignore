@@ -4,5 +4,7 @@ build
 .env
 .env.*
 !.env.example
+.vercel
+.netlify
 .DS_Store
 *.log

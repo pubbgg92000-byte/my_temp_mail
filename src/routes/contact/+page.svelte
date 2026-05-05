@@ -5,8 +5,8 @@
 
 <main class="app-shell max-w-4xl space-y-4">
   <header class="topbar">
-    <a href="/dashboard" class="font-black">⚡ OtpNest</a>
-    <a class="btn btn-secondary" href="/dashboard">Dashboard</a>
+    <a href="/quick" class="font-black">⚡ OtpNest</a>
+    <a class="btn btn-secondary" href="/quick">Quick mail</a>
   </header>
 
   <section class="section-card">
