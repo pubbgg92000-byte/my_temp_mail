@@ -92,3 +92,4 @@ supabase/
   `+page.svelte`. If you add new routes, keep service-role usage to
   `src/lib/server/admin.ts` and the worker.
 - No outgoing email. No attachment download. By design, MVP scope.
+# my_temp_mail
