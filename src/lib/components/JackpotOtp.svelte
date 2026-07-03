@@ -14,7 +14,11 @@
 	let animationNow = $state(Date.now());
 	let reelSpinning = $state<boolean[]>([]);
 	let spinTimer: ReturnType<typeof setInterval> | undefined;
+	let soundTimer: ReturnType<typeof setInterval> | undefined;
 	let stopTimers: ReturnType<typeof setTimeout>[] = [];
+	let audioContext: AudioContext | undefined;
+	let noiseBuffer: AudioBuffer | undefined;
+	let wasSpinning = false;
 
 	const reelIndexes = $derived(Array.from({ length }, (_, index) => index));
 	const normalizedCode = $derived(
@@ -42,8 +46,95 @@
 		].join('; ');
 	}
 
+	function getAudioContext() {
+		if (typeof window === 'undefined') return undefined;
+		audioContext ??= new AudioContext();
+		if (audioContext.state === 'suspended') void audioContext.resume();
+		return audioContext;
+	}
+
+	function getNoiseBuffer(context: AudioContext) {
+		if (noiseBuffer) return noiseBuffer;
+		const length = Math.max(1, Math.floor(context.sampleRate * 0.08));
+		noiseBuffer = context.createBuffer(1, length, context.sampleRate);
+		const channel = noiseBuffer.getChannelData(0);
+
+		for (let index = 0; index < length; index += 1) {
+			channel[index] = Math.random() * 2 - 1;
+		}
+
+		return noiseBuffer;
+	}
+
+	function playTone(frequency: number, startOffset: number, duration: number, gainLevel = 0.06) {
+		const context = getAudioContext();
+		if (!context) return;
+
+		const start = context.currentTime + startOffset;
+		const oscillator = context.createOscillator();
+		const gain = context.createGain();
+
+		oscillator.type = 'triangle';
+		oscillator.frequency.setValueAtTime(frequency, start);
+		gain.gain.setValueAtTime(0.0001, start);
+		gain.gain.exponentialRampToValueAtTime(gainLevel, start + 0.012);
+		gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+		oscillator.connect(gain);
+		gain.connect(context.destination);
+		oscillator.start(start);
+		oscillator.stop(start + duration + 0.03);
+	}
+
+	function playWheelClick(startOffset = 0, gainLevel = 0.048) {
+		const context = getAudioContext();
+		if (!context) return;
+
+		const start = context.currentTime + startOffset;
+		const source = context.createBufferSource();
+		const filter = context.createBiquadFilter();
+		const gain = context.createGain();
+
+		source.buffer = getNoiseBuffer(context);
+		filter.type = 'bandpass';
+		filter.frequency.setValueAtTime(1150 + Math.random() * 650, start);
+		filter.Q.setValueAtTime(8, start);
+		gain.gain.setValueAtTime(0.0001, start);
+		gain.gain.exponentialRampToValueAtTime(gainLevel, start + 0.004);
+		gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.028);
+
+		source.connect(filter);
+		filter.connect(gain);
+		gain.connect(context.destination);
+		source.start(start);
+		source.stop(start + 0.035);
+	}
+
+	function startJackpotSound() {
+		if (soundTimer || typeof window === 'undefined') return;
+		let tick = 0;
+
+		playWheelClick(0, 0.058);
+		soundTimer = setInterval(() => {
+			playWheelClick(0, tick % 3 === 0 ? 0.056 : 0.038);
+			if (tick % 4 === 0) playWheelClick(0.028, 0.026);
+			tick += 1;
+		}, 72);
+	}
+
+	function stopJackpotSound(playWin = false) {
+		if (soundTimer) clearInterval(soundTimer);
+		soundTimer = undefined;
+
+		if (!playWin) return;
+		[0, 0.055, 0.11].forEach((offset, index) => playWheelClick(offset, 0.062 - index * 0.012));
+		playTone(440, 0.16, 0.09, 0.026);
+	}
+
 	$effect(() => {
 		if (spinning) {
+			if (!wasSpinning) startJackpotSound();
+			wasSpinning = true;
 			stopTimers.forEach(clearTimeout);
 			stopTimers = [];
 			reelSpinning = Array.from({ length }, () => true);
@@ -55,6 +146,8 @@
 				animationNow = Date.now();
 			}, 250);
 		} else {
+			if (wasSpinning) stopJackpotSound(Boolean(code));
+			wasSpinning = false;
 			if (spinTimer) clearInterval(spinTimer);
 			spinTimer = undefined;
 			stopTimers.forEach(clearTimeout);
@@ -75,6 +168,7 @@
 		return () => {
 			if (spinTimer) clearInterval(spinTimer);
 			spinTimer = undefined;
+			stopJackpotSound();
 			stopTimers.forEach(clearTimeout);
 			stopTimers = [];
 		};
